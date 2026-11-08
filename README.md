@@ -21,6 +21,18 @@ docker compose exec db psql -U momentum -d momentum -c "SELECT current_database(
 
 PostgreSQL listens on `127.0.0.1:5433` by default. The database and user are both `momentum`. If the port is in use, change `POSTGRES_PORT` in `.env`. Use `docker compose down` to stop and remove the container. The named volume keeps your data for the next start.
 
+## Database migrations and API health
+
+With the database running, apply the account and diary migrations from the repository root:
+
+```powershell
+npm run db:migrate
+```
+
+Run this command again whenever you pull a new migration. PostgreSQL records which SQL files ran. Add a new numbered file in `apps/api/migrations` for later changes so existing databases can apply them in order.
+
+Start the API with `npm run dev:api` and open [http://127.0.0.1:3001/health](http://127.0.0.1:3001/health). It returns HTTP `200` with `{"status":"ok","database":"up"}` when PostgreSQL responds and `503` when the connection fails. The API and migration command read `POSTGRES_PASSWORD` and `POSTGRES_PORT` from the repository’s `.env`.
+
 ## Check changes
 
 Run `npm run typecheck` for both apps, `npm run build:api` to compile the API, and `npm run build:mobile` to export Android and iOS bundles.
