@@ -1,0 +1,16 @@
+{
+  "name": "momentum",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/mobile", "apps/api"],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:mobile": "npm run start --workspace @momentum/mobile",
+    "dev:api": "npm run dev --workspace @momentum/api",
+    "typecheck": "npm run typecheck --workspaces",
+    "build:api": "npm run build --workspace @momentum/api",
+    "build:mobile": "npm run build --workspace @momentum/mobile"
+  }
+}

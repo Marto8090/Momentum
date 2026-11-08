@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "name": "Momentum",
+    "slug": "momentum",
+    "version": "0.1.0",
+    "platforms": ["android", "ios"]
+  }
+}
