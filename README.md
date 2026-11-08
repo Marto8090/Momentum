@@ -6,7 +6,7 @@ Momentum is a mobile diary for reflecting on postponed tasks and choosing one sm
 
 Install Node.js 24 and run `npm ci` from the repository root.
 
-**Mobile:** Run `npm run dev:mobile` with your phone and computer on the same Wi-Fi network. Scan the QR code in Expo Go on Android or with Camera on iOS. The app should display the Momentum welcome screen. If Expo Go reports a version mismatch, select SDK 58 on the [Expo Go download page](https://expo.dev/go) and follow the steps for your device.
+**Mobile:** Run `npm run dev:mobile` with your phone and computer on the same Wi-Fi network. Scan the QR code in Expo Go on Android or with Camera on iOS. Follow the phone test steps below to connect the app to the local API. If Expo Go reports a version mismatch, select SDK 58 on the [Expo Go download page](https://expo.dev/go) and follow the steps for your device.
 
 **API:** In a separate terminal, run `npm run dev:api` and open [http://127.0.0.1:3001/](http://127.0.0.1:3001/). The response should be `{"name":"Momentum API"}`. Set `PORT` in the terminal environment if port 3001 is already in use.
 
@@ -42,6 +42,37 @@ After running the migrations, run `npm run auth:create-owner` from the repositor
 If you created an owner before username support, rerun the command after applying the migrations. Enter the owner's existing email and choose a username. You can use the same password to sign in.
 
 Start the API with `npm run dev:api`. It accepts `POST /api/auth/sign-in/username` with `username` and `password`, `GET /api/auth/get-session`, and `POST /api/auth/sign-out`. Send the session cookie on later requests. `GET /api/me` returns the signed-in owner's `id`, `email`, and `username` or HTTP `401` without a valid session. Owner creation runs through the terminal command, and the API disables registration.
+
+## Test sign-in on your phone
+
+Start PostgreSQL and set up your private owner as described above. For this local test, use a fictional account and keep your phone and computer on the same Wi-Fi network. Find your computer's Wi-Fi IPv4 address with `ipconfig`. In the examples below, replace `192.168.1.23` with that address.
+
+In the API terminal, stop the previous API process if it is running, then run:
+
+```powershell
+$momentumIp = '192.168.1.23'
+$env:HOST = '0.0.0.0'
+$env:BETTER_AUTH_URL = "http://${momentumIp}:3001"
+$env:MOMENTUM_EXPO_ORIGIN = "exp://${momentumIp}:8081"
+npm.cmd run dev:api
+```
+
+In the mobile terminal, run:
+
+```powershell
+$env:EXPO_PUBLIC_API_URL = 'http://192.168.1.23:3001'
+npm.cmd run start --workspace @momentum/mobile -- --lan --port 8081
+```
+
+Open the API's `/health` URL in your phone's browser to check connectivity, then scan the Expo Go QR code. If Metro uses a different port, update `MOMENTUM_EXPO_ORIGIN` to match the `exp://` address printed by Metro and restart the API.
+
+1. Try a wrong password. The app should stay on Sign in and show an error.
+2. Sign in with the owner username and password. The app should greet you by username.
+3. Close and reopen the app. It should restore the session and confirm it with the API.
+4. Sign out, then reopen the app. It should show the sign-in form.
+
+The mobile app stores the session cookie in Expo SecureStore. The API address is public configuration. Keep authentication secrets in the root `.env`, and use an HTTPS API address for release builds.
+
 
 ## Check changes
 
