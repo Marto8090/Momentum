@@ -33,6 +33,16 @@ Run this command again whenever you pull a new migration. PostgreSQL records whi
 
 Start the API with `npm run dev:api` and open [http://127.0.0.1:3001/health](http://127.0.0.1:3001/health). It returns HTTP `200` with `{"status":"ok","database":"up"}` when PostgreSQL responds and `503` when the connection fails. The API and migration command read `POSTGRES_PASSWORD` and `POSTGRES_PORT` from the repository’s `.env`.
 
+## Private owner account
+
+Set `BETTER_AUTH_SECRET` in `.env` to a random value. Generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. If you change the API address or port, set `BETTER_AUTH_URL` to the API origin that clients use.
+
+After running the migrations, run `npm run auth:create-owner` from the repository root. Enter the owner's email, a username, and a password of at least 15 characters. The terminal masks the password and asks you to confirm it. Usernames are case insensitive and support 3 to 30 letters, numbers, underscores, or periods.
+
+If you created an owner before username support, rerun the command after applying the migrations. Enter the owner's existing email and choose a username. You can use the same password to sign in.
+
+Start the API with `npm run dev:api`. It accepts `POST /api/auth/sign-in/username` with `username` and `password`, `GET /api/auth/get-session`, and `POST /api/auth/sign-out`. Send the session cookie on later requests. `GET /api/me` returns the signed-in owner's `id`, `email`, and `username` or HTTP `401` without a valid session. Owner creation runs through the terminal command, and the API disables registration.
+
 ## Check changes
 
 Run `npm run typecheck` for both apps, `npm run build:api` to compile the API, and `npm run build:mobile` to export Android and iOS bundles.

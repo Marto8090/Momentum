@@ -8,9 +8,13 @@
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "migrate": "node --env-file-if-exists=../../.env src/migrate.ts"
+    "migrate": "node --env-file-if-exists=../../.env src/migrate.ts",
+    "create-owner": "node --env-file-if-exists=../../.env src/create-owner.ts"
   },
   "dependencies": {
+    "@better-auth/expo": "1.7.18",
+    "@inquirer/prompts": "8.7.5",
+    "better-auth": "1.7.18",
     "express": "^5.1.0",
     "pg": "8.16.3"
   },
