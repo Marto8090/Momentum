@@ -10,7 +10,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev:mobile": "npm run start --workspace @momentum/mobile",
+    "dev:mobile": "npm run start --workspace @momentum/mobile --",
     "dev:api": "npm run dev --workspace @momentum/api",
     "typecheck": "npm run typecheck --workspaces",
     "build:api": "npm run build --workspace @momentum/api",

@@ -57,11 +57,16 @@ $env:MOMENTUM_EXPO_ORIGIN = "exp://${momentumIp}:8081"
 npm.cmd run dev:api
 ```
 
+Save the mobile API address in `apps/mobile/.env.development.local`. The mobile start command uses this value ahead of an address already set in your terminal.
+
+```dotenv
+EXPO_PUBLIC_API_URL=http://192.168.1.23:3001
+```
+
 In the mobile terminal, run:
 
 ```powershell
-$env:EXPO_PUBLIC_API_URL = 'http://192.168.1.23:3001'
-npm.cmd run start --workspace @momentum/mobile -- --lan --port 8081
+npm.cmd run dev:mobile -- --lan --port 8081
 ```
 
 Open the API's `/health` URL in your phone's browser to check connectivity, then scan the Expo Go QR code. If Metro uses a different port, update `MOMENTUM_EXPO_ORIGIN` to match the `exp://` address printed by Metro and restart the API.
@@ -73,6 +78,23 @@ Open the API's `/health` URL in your phone's browser to check connectivity, then
 
 The mobile app stores the session cookie in Expo SecureStore. The API address is public configuration. Keep authentication secrets in the root `.env`, and use an HTTPS API address for release builds.
 
+
+## Deploy the API to Azure
+
+From the repository root, build the API image with `docker build -t momentum-api .`. It listens on port `3001`. In Azure Container Apps, use external HTTPS ingress with target port `3001` and put the environment on `container-apps-subnet` in `momentum-vnet`. This allows the API to reach the private PostgreSQL server.
+
+| Setting | Value |
+| --- | --- |
+| `POSTGRES_HOST` | `momentum.postgres.database.azure.com` |
+| `POSTGRES_PORT` | `5432` |
+| `POSTGRES_USER` | The PostgreSQL role used for the pilot database |
+| `POSTGRES_PASSWORD` | Container Apps secret reference for the role password |
+| `BETTER_AUTH_SECRET` | Container Apps secret reference for a separate random auth secret |
+| `BETTER_AUTH_URL` | The API's public `https://` origin |
+
+The API uses the `momentum` database. It verifies the TLS certificate for remote PostgreSQL connections. Local commands use `127.0.0.1:5433` and the `momentum` database user by default.
+
+From a container shell in that environment, run `npm run db:migrate`, then `npm run auth:create-owner` and enter the pilot login interactively. Verify the HTTPS `/health` response before pointing the Android build's `EXPO_PUBLIC_API_URL` at the API origin.
 
 ## Check changes
 
