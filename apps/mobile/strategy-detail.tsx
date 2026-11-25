@@ -20,7 +20,7 @@ export function StrategyDetailScreen({
   onOpenEntry,
 }: StrategyDetailScreenProps) {
   const { journalEntry } = strategy;
-  const excerpt = journalEntry?.reflection ? `“${journalEntry.reflection}”` : journalEntry?.summary;
+  const excerpt = journalEntry?.reflection ? `“${journalEntry.reflection}”` : journalEntry?.nextAction;
 
   return (
     <AppScreen theme={theme} contentContainerStyle={styles.content}>

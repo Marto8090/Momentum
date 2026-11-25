@@ -5,6 +5,7 @@ import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans/600SemiBold";
 import { DMSans_700Bold } from "@expo-google-fonts/dm-sans/700Bold";
 import { Lora_600SemiBold } from "@expo-google-fonts/lora/600SemiBold";
 import Feather from "@expo/vector-icons/Feather";
+import { randomUUID } from "expo-crypto";
 import { useFonts } from "expo-font";
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -28,14 +29,10 @@ import { HomeScreen } from "./home-screen";
 import { getInsightsSummary, type InsightsPeriod, type InsightsView } from "./insights-data";
 import { InsightsFooter, InsightsScreen } from "./insights-screen";
 import { JournalEntryScreen, JournalScreen } from "./journal-screens";
-import {
-  pendingJournalEntry,
-  recentJournalEntry,
-  sampleJournalEntries,
-  type JournalEntry,
-} from "./journal-data";
+import { JournalRequestError, saveJournalEntry, useJournal } from "./journal-client";
+import type { JournalEntry } from "./journal-data";
 import { ReflectionScreen } from "./reflection-screen";
-import { sampleStrategies, type Strategy } from "./strategy-data";
+import { getJournalStrategies, type Strategy } from "./strategy-data";
 import { StrategyDetailScreen } from "./strategy-detail";
 import { StrategyLibraryFooter, StrategyLibraryScreen } from "./strategy-library";
 
@@ -325,7 +322,7 @@ type SignedInDestination =
   | { name: "create-strategy" }
   | StrategyDestination
   | EntryDestination
-  | { name: "entry-form"; step: "details" | "strategy"; draft: EntryDraft; returnToEntry?: EntryDestination }
+  | { name: "entry-form"; step: "details" | "strategy"; id: string; draft: EntryDraft; returnToEntry?: EntryDestination }
   | { name: "reflection"; entry: JournalEntry; returnToEntry?: EntryDestination };
 
 function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange }: OwnerAccessProps & {
@@ -340,11 +337,19 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
   const [notice, setNotice] = useState("");
   const [previewNotice, setPreviewNotice] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const submitting = useRef(false);
+  const entrySubmission = useRef(false);
+  const { entries, loading: journalLoading, error: journalError, refresh, rememberSaved } = useJournal(client);
 
   const backLabel = tabLabels[tab];
+  const strategies = getJournalStrategies(entries);
+  const showEmpty = !journalLoading && !journalError && entries.length === 0;
 
   const goBack = useCallback(() => {
+    if (entrySubmission.current) return;
+    setSaveError(undefined);
     setDestination((current) => {
       if (current?.name === "entry-form" && current.step === "strategy") {
         return { ...current, step: "details" };
@@ -361,10 +366,11 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
   function selectTab(nextTab: MainTab) {
     setPreviewNotice("");
     setTab(nextTab);
+    if (nextTab === "journal") void refresh();
   }
 
   function openEntry(id: string, returnTo?: StrategyDestination) {
-    const entry = sampleJournalEntries.find((sample) => sample.id === id);
+    const entry = entries.find((entry) => entry.id === id);
     if (entry) {
       setPreviewNotice("");
       setDestination({ name: "entry", entry, returnTo });
@@ -381,9 +387,31 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     setDestination({ name: "create-strategy" });
   }
 
-  function openEntryPreview() {
+  function openNewEntry() {
     setPreviewNotice("");
-    setDestination({ name: "entry-form", step: "details", draft: initialEntryDraft });
+    setSaveError(undefined);
+    setDestination({ name: "entry-form", step: "details", id: randomUUID(), draft: initialEntryDraft });
+  }
+
+  async function createEntry(id: string, draft: EntryDraft) {
+    if (entrySubmission.current) return;
+    entrySubmission.current = true;
+    setSavingEntry(true);
+    setSaveError(undefined);
+
+    try {
+      const entry = await saveJournalEntry(client, id, draft);
+      rememberSaved(entry);
+      setTab("journal");
+      setDestination(null);
+      setPreviewNotice("Entry saved.");
+    } catch (error) {
+      setSaveError(error instanceof JournalRequestError ? error.message : "Couldn't save your entry. Try again.");
+      if (error instanceof JournalRequestError && (error.status === 401 || error.status === 409)) void refresh();
+    } finally {
+      entrySubmission.current = false;
+      setSavingEntry(false);
+    }
   }
 
   function openEditPreview(returnToEntry: EntryDestination) {
@@ -392,12 +420,14 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     setDestination({
       name: "entry-form",
       step: "details",
+      id: entry.id,
       returnToEntry,
       draft: {
         task: entry.title,
         difficulty: entry.blocker,
         activity: entry.whatIDidInstead ?? "",
         strategy: entry.strategy ?? "",
+        nextAction: entry.nextAction,
       },
     });
   }
@@ -494,9 +524,15 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
           mode={mode}
           onDraftChange={changeDraft}
           onBack={goBack}
+          saving={savingEntry}
+          error={saveError}
           onFinish={() => {
-            setPreviewNotice(returnToEntry ? "Saving entry changes is coming later." : "Entry saving is coming later.");
-            setDestination(returnToEntry ?? null);
+            if (returnToEntry) {
+              setPreviewNotice("Saving entry changes is coming later.");
+              setDestination(returnToEntry);
+            } else {
+              void createEntry(destination.id, destination.draft);
+            }
           }}
         />
       );
@@ -540,7 +576,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
         <View>
           {tab === "journal" ? (
             <View style={styles.journalAction}>
-              <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={openEntryPreview} />
+              <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={openNewEntry} />
             </View>
           ) : null}
           {tab === "strategies" ? <StrategyLibraryFooter theme={theme} onAddStrategy={openCreateStrategy} /> : null}
@@ -567,22 +603,31 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
       </View>
       {notice ? <Notice theme={theme} message={notice} error /> : null}
       {previewNotice ? <Notice theme={theme} message={previewNotice} /> : null}
+      {journalError ? (
+        <View style={styles.journalStatus}>
+          <Notice theme={theme} message={journalError} error />
+          <ActionButton theme={theme} label="Retry journal" onPress={() => void refresh()} variant="outline" />
+        </View>
+      ) : journalLoading && entries.length === 0 ? (
+        <ActivityIndicator accessibilityLabel="Loading journal" color={theme.accent} />
+      ) : null}
       {tab === "home" ? (
         <HomeScreen
           theme={theme}
           ownerName={ownerName}
-          recentEntry={recentJournalEntry}
-          pendingEntry={pendingJournalEntry}
+          recentEntry={entries[0]}
+          pendingEntry={entries.find((entry) => entry.strategy && !entry.reflection)}
+          showEmpty={showEmpty}
           onOpenEntry={openEntry}
-          onAddEntry={openEntryPreview}
-          onReflect={() => openReflection(pendingJournalEntry)}
+          onAddEntry={openNewEntry}
+          onReflect={openReflection}
         />
       ) : tab === "journal" ? (
-        <JournalScreen theme={theme} entries={sampleJournalEntries} onOpenEntry={openEntry} />
+        <JournalScreen theme={theme} entries={entries} onOpenEntry={openEntry} showEmpty={showEmpty} />
       ) : tab === "strategies" ? (
         <StrategyLibraryScreen
           theme={theme}
-          strategies={sampleStrategies}
+          strategies={strategies}
           query={strategyQuery}
           savedOnly={savedStrategiesOnly}
           onQueryChange={setStrategyQuery}
@@ -592,7 +637,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
       ) : (
         <InsightsScreen
           theme={theme}
-          summary={getInsightsSummary(insightsPeriod)}
+          summary={getInsightsSummary(insightsPeriod, entries, strategies)}
           period={insightsPeriod}
           view={insightsView}
           onPeriodChange={setInsightsPeriod}
@@ -669,6 +714,7 @@ const styles = StyleSheet.create({
   tabContent: { paddingBottom: 14 },
   tabHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 },
   journalAction: { paddingHorizontal: 26, paddingTop: 8, paddingBottom: 14 },
+  journalStatus: { gap: 8, marginBottom: 12 },
   tabBar: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12 },
   tab: { flex: 1, minHeight: 68, alignItems: "center", justifyContent: "center", gap: 4, padding: 4 },
   tabLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" },

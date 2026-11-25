@@ -137,7 +137,7 @@ function SectionTitle({ theme, title }: Themed & { title: string }) {
 }
 
 function Patterns({ theme, summary }: Themed & { summary: InsightsSummary }) {
-  const { blockers, entryCount, timeOfDay, taskType } = summary;
+  const { blockers, entryCount, timeOfDay } = summary;
   const entries = countLabel(entryCount, "entry", "entries");
   const body = { color: theme.muted, fontFamily: theme.fonts.body };
   const firstIsMostCommon = blockers.length > 0 && blockers[0].count > (blockers[1]?.count ?? 0);
@@ -166,12 +166,11 @@ function Patterns({ theme, summary }: Themed & { summary: InsightsSummary }) {
       ) : (
         <Text style={[styles.body, body]}>No difficulties recorded in this period.</Text>
       )}
-      {timeOfDay || taskType ? (
+      {timeOfDay ? (
         <View style={styles.section}>
           <SectionTitle theme={theme} title="Most often recorded" />
           <View>
-            {timeOfDay ? <CommonValue theme={theme} category="Time of day" icon="clock" result={timeOfDay} total={entries} /> : null}
-            {taskType ? <CommonValue theme={theme} category="Task type" icon="list" result={taskType} total={entries} /> : null}
+            <CommonValue theme={theme} result={timeOfDay} total={entries} />
           </View>
         </View>
       ) : null}
@@ -179,9 +178,7 @@ function Patterns({ theme, summary }: Themed & { summary: InsightsSummary }) {
   );
 }
 
-function CommonValue({ theme, category, icon, result, total }: Themed & {
-  category: string;
-  icon: "clock" | "list";
+function CommonValue({ theme, result, total }: Themed & {
   result: InsightCount;
   total: string;
 }) {
@@ -190,12 +187,12 @@ function CommonValue({ theme, category, icon, result, total }: Themed & {
   return (
     <View
       accessible
-      accessibilityLabel={`${category}, ${result.label}, ${result.count} of ${total}`}
+      accessibilityLabel={`Time of day, ${result.label}, ${result.count} of ${total}`}
       style={[styles.commonValue, { borderColor: theme.border }]}
     >
-      <Feather accessible={false} name={icon} size={23} color={theme.foreground} />
+      <Feather accessible={false} name="clock" size={23} color={theme.foreground} />
       <View style={styles.resultCopy}>
-        <Text style={[styles.caption, body]}>{category}</Text>
+        <Text style={[styles.caption, body]}>Time of day</Text>
         <Text style={[styles.rowTitle, { color: theme.foreground, fontFamily: theme.fonts.heading }]}>{result.label}</Text>
         <Text style={[styles.caption, body]}>{result.count} of {total}</Text>
       </View>
@@ -209,7 +206,7 @@ function StrategyResult({ theme, result, onOpenStrategy }: Themed & {
 }) {
   const { strategy, yes, aLittle, notReally } = result;
   const count = yes + aLittle + notReally;
-  const resultLabel = count ? `You answered Yes in ${yes} of ${count}.` : "No reflections yet";
+  const resultLabel = count ? `You answered Yes in ${yes} of ${count}.` : "No ratings yet";
   const breakdown = [
     yes ? `${yes} Yes` : "",
     aLittle ? `${aLittle} A little` : "",

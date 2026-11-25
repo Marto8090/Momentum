@@ -1,67 +1,49 @@
+export type StoredJournalEntry = {
+  id: string;
+  title: string;
+  blocker: string;
+  whatIDidInstead: string;
+  nextAction: string;
+  strategy: string | null;
+  reflection: string | null;
+  createdAt: string;
+};
+
 export type JournalEntry = {
   id: string;
   title: string;
-  groupLabel: string;
   date: string;
   recordedOn: string;
   time: string;
-  taskType: string;
   blocker: string;
-  whatIDidInstead?: string;
+  whatIDidInstead: string;
+  nextAction: string;
   strategy?: string;
   strategyOutcome?: string;
   reflection?: string;
-  summary?: string;
 };
 
-const projectProposal: JournalEntry = {
-  id: "project-proposal",
-  title: "Write project proposal",
-  groupLabel: "20 Sep",
-  date: "20 Sep 2026",
-  recordedOn: "2026-09-20",
-  time: "10:30",
-  taskType: "Study",
-  blocker: "Unclear first step",
-  whatIDidInstead: "Checked social media",
-  strategy: "Work for 5 minutes",
-  strategyOutcome: "Didn’t help",
-  reflection: "I set a five-minute timer before opening the proposal.",
-  summary: "Working for five minutes didn’t help.",
-};
+const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const timeFormat = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-const researchArticle: JournalEntry = {
-  id: "research-article",
-  title: "Read research article",
-  groupLabel: "20 Sep",
-  date: "20 Sep 2026",
-  recordedOn: "2026-09-20",
-  time: "09:15",
-  taskType: "Study",
-  blocker: "Overwhelm",
-  whatIDidInstead: "Read messages",
-  strategy: "Split it into parts",
-  summary: "You tried splitting it into parts.",
-};
+export function localDay(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
-export const sampleJournalEntries: readonly JournalEntry[] = [
-  projectProposal,
-  researchArticle,
-  {
-    id: "plan-the-week",
-    title: "Plan the week",
-    groupLabel: "19 Sep",
-    date: "19 Sep 2026",
-    recordedOn: "2026-09-19",
-    time: "16:20",
-    taskType: "Planning",
-    blocker: "Distraction",
-    whatIDidInstead: "Browsed on my phone",
-    strategy: "Work for 5 minutes",
-    strategyOutcome: "Helped me get started",
-    reflection: "Five minutes was enough to write down the first two priorities.",
-  },
-];
-
-export const recentJournalEntry = projectProposal;
-export const pendingJournalEntry = researchArticle;
+export function toJournalEntry(entry: StoredJournalEntry): JournalEntry {
+  const date = new Date(entry.createdAt);
+  return {
+    id: entry.id,
+    title: entry.title,
+    date: dateFormat.format(date),
+    recordedOn: localDay(date),
+    time: timeFormat.format(date),
+    blocker: entry.blocker,
+    whatIDidInstead: entry.whatIDidInstead,
+    nextAction: entry.nextAction,
+    strategy: entry.strategy ?? undefined,
+    reflection: entry.reflection ?? undefined,
+  };
+}

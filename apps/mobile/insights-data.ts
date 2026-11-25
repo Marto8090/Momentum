@@ -1,5 +1,5 @@
-import { sampleJournalEntries, type JournalEntry } from "./journal-data";
-import { sampleStrategies, type Strategy } from "./strategy-data";
+import { localDay, type JournalEntry } from "./journal-data";
+import type { Strategy } from "./strategy-data";
 
 export type InsightsPeriod = "7-days" | "30-days" | "all-time";
 export type InsightsView = "patterns" | "what-helps";
@@ -12,12 +12,10 @@ export type InsightsSummary = {
   reflectionCount: number;
   blockers: readonly InsightCount[];
   timeOfDay?: InsightCount;
-  taskType?: InsightCount;
   strategies: readonly StrategyInsight[];
 };
 
 const daysByPeriod = { "7-days": 7, "30-days": 30 };
-const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
 const outcomeBuckets = new Map<string, "yes" | "aLittle" | "notReally">([
   ["Helped me get started", "yes"],
@@ -27,12 +25,14 @@ const outcomeBuckets = new Map<string, "yes" | "aLittle" | "notReally">([
   ["Not at all", "notReally"],
 ]);
 
-function entriesForPeriod(period: InsightsPeriod): readonly JournalEntry[] {
-  if (period === "all-time" || sampleJournalEntries.length === 0) return sampleJournalEntries;
+function entriesForPeriod(entries: readonly JournalEntry[], period: InsightsPeriod): readonly JournalEntry[] {
+  if (period === "all-time") return entries;
 
-  const latestDate = Math.max(...sampleJournalEntries.map((entry) => Date.parse(entry.recordedOn)));
-  const firstDate = latestDate - (daysByPeriod[period] - 1) * millisecondsPerDay;
-  return sampleJournalEntries.filter((entry) => Date.parse(entry.recordedOn) >= firstDate);
+  const firstDate = new Date();
+  const today = localDay(firstDate);
+  firstDate.setDate(firstDate.getDate() - daysByPeriod[period] + 1);
+  const firstDay = localDay(firstDate);
+  return entries.filter((entry) => entry.recordedOn >= firstDay && entry.recordedOn <= today);
 }
 
 function countLabels(labels: readonly string[]): InsightCount[] {
@@ -63,15 +63,18 @@ function countStrategyOutcomes(strategy: Strategy, entries: readonly JournalEntr
   return result;
 }
 
-export function getInsightsSummary(period: InsightsPeriod): InsightsSummary {
-  const entries = entriesForPeriod(period);
+export function getInsightsSummary(
+  period: InsightsPeriod,
+  journalEntries: readonly JournalEntry[],
+  strategies: readonly Strategy[],
+): InsightsSummary {
+  const entries = entriesForPeriod(journalEntries, period);
 
   return {
     entryCount: entries.length,
     reflectionCount: entries.filter((entry) => entry.reflection || entry.strategyOutcome).length,
     blockers: countLabels(entries.map((entry) => entry.blocker)),
     timeOfDay: countLabels(entries.map((entry) => getTimeOfDay(entry.time)))[0],
-    taskType: countLabels(entries.map((entry) => entry.taskType))[0],
-    strategies: sampleStrategies.map((strategy) => countStrategyOutcomes(strategy, entries)),
+    strategies: strategies.map((strategy) => countStrategyOutcomes(strategy, entries)),
   };
 }

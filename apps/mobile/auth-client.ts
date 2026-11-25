@@ -33,6 +33,6 @@ function createMomentumAuthClient(apiOrigin: string) {
   });
 }
 
-const apiOrigin = getApiOrigin();
+export const apiOrigin = getApiOrigin();
 export const authClient = apiOrigin ? createMomentumAuthClient(apiOrigin) : undefined;
 export type MomentumAuthClient = ReturnType<typeof createMomentumAuthClient>;

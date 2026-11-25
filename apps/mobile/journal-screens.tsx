@@ -106,9 +106,9 @@ function JournalRow({
       <Text style={[styles.entryPreview, { color: theme.muted, fontFamily: theme.fonts.body }]}>
         {entry.blocker}
       </Text>
-      {reflected && entry.summary ? (
+      {entry.reflection ? (
         <Text style={[styles.entryPreview, { color: theme.muted, fontFamily: theme.fonts.body }]}>
-          {entry.summary}
+          {entry.reflection}
         </Text>
       ) : null}
     </Pressable>
@@ -119,18 +119,24 @@ export function JournalScreen({
   theme,
   entries,
   onOpenEntry,
-}: Themed & { entries: readonly JournalEntry[]; onOpenEntry: (entryId: JournalEntry["id"]) => void }) {
+  showEmpty,
+}: Themed & { entries: readonly JournalEntry[]; onOpenEntry: (entryId: JournalEntry["id"]) => void; showEmpty: boolean }) {
   const groupedEntries = new Map<string, JournalEntry[]>();
   for (const entry of entries) {
-    const group = groupedEntries.get(entry.groupLabel);
+    const group = groupedEntries.get(entry.date);
     if (group) group.push(entry);
-    else groupedEntries.set(entry.groupLabel, [entry]);
+    else groupedEntries.set(entry.date, [entry]);
   }
 
   return (
     <View>
       <ScreenHeading theme={theme} title="Your journal" description="Notice what works for you." />
       <JournalBrowseControls theme={theme} />
+      {showEmpty ? (
+        <Text style={[styles.group, styles.entryPreview, { color: theme.muted, fontFamily: theme.fonts.body }]}>
+          No entries yet. Tap Add an entry to get started.
+        </Text>
+      ) : null}
       {[...groupedEntries].map(([label, group]) => (
         <View key={label} style={styles.group}>
           <Text
@@ -245,6 +251,7 @@ export function JournalEntryScreen({
             outcome={entry.strategyOutcome}
           />
         ) : null}
+        <EntryFact theme={theme} icon="arrow-right-circle" label="Small next step" value={entry.nextAction} />
       </View>
       {entry.reflection ? (
         <View style={[styles.reflection, { borderColor: theme.border }]}>

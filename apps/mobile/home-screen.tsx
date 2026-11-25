@@ -6,11 +6,12 @@ import type { JournalEntry } from "./journal-data";
 type HomeScreenProps = {
   theme: AccountTheme;
   ownerName: string;
-  recentEntry: JournalEntry;
-  pendingEntry: JournalEntry;
+  recentEntry?: JournalEntry;
+  pendingEntry?: JournalEntry;
+  showEmpty: boolean;
   onOpenEntry: (id: JournalEntry["id"]) => void;
   onAddEntry: () => void;
-  onReflect: () => void;
+  onReflect: (entry: JournalEntry) => void;
 };
 
 export function HomeScreen({
@@ -18,6 +19,7 @@ export function HomeScreen({
   ownerName,
   recentEntry,
   pendingEntry,
+  showEmpty,
   onOpenEntry,
   onAddEntry,
   onReflect,
@@ -33,46 +35,45 @@ export function HomeScreen({
         <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={onAddEntry} />
       </View>
 
-      <View style={[styles.divider, { backgroundColor: theme.border }]} />
-      <View
-        style={[
-          styles.pendingCard,
-          { backgroundColor: theme.surface, borderColor: theme.border },
-        ]}
-      >
-        <View style={styles.pendingLabel}>
-          <Feather accessible={false} name="clock" size={19} color={theme.accent} />
-          <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.medium }]}>
-            Time to reflect
-          </Text>
-        </View>
-        <Text style={[styles.itemHeading, { color: theme.foreground, fontFamily: theme.fonts.heading }]}>
-          {pendingEntry.title}
-        </Text>
-        <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.body }]}>
-          {pendingEntry.summary}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onReflect}
-          style={({ pressed }) => [
-            styles.reflectButton,
-            { backgroundColor: theme.surfaceRaised },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={[styles.reflectLabel, { color: theme.accent, fontFamily: theme.fonts.bold }]}>
-            Reflect
-          </Text>
-        </Pressable>
-      </View>
+      {pendingEntry ? (
+        <>
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <View style={[styles.pendingCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.pendingLabel}>
+              <Feather accessible={false} name="clock" size={19} color={theme.accent} />
+              <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.medium }]}>
+                Time to reflect
+              </Text>
+            </View>
+            <Text style={[styles.itemHeading, { color: theme.foreground, fontFamily: theme.fonts.heading }]}>
+              {pendingEntry.title}
+            </Text>
+            <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.body }]}>
+              {pendingEntry.nextAction}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => onReflect(pendingEntry)}
+              style={({ pressed }) => [
+                styles.reflectButton,
+                { backgroundColor: theme.surfaceRaised },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.reflectLabel, { color: theme.accent, fontFamily: theme.fonts.bold }]}>
+                Reflect
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
       <View style={styles.infoRow}>
         <Feather accessible={false} name="sun" size={22} color={theme.accent} />
         <View style={styles.rowCopy}>
           <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.medium }]}>
-            What helped lately
+            Strategy to try
           </Text>
           <Text style={[styles.itemHeading, { color: theme.foreground, fontFamily: theme.fonts.heading }]}>
             Work for 5 minutes
@@ -83,27 +84,35 @@ export function HomeScreen({
         </View>
       </View>
 
-      <View style={[styles.divider, { backgroundColor: theme.border }]} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Recent journal entry, ${recentEntry.title}`}
-        onPress={() => onOpenEntry(recentEntry.id)}
-        style={({ pressed }) => [styles.infoRow, pressed && styles.pressed]}
-      >
-        <Feather accessible={false} name="book-open" size={22} color={theme.accent} />
-        <View style={styles.rowCopy}>
-          <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.medium }]}>
-            Recent journal entry
-          </Text>
-          <Text style={[styles.entryTitle, { color: theme.foreground, fontFamily: theme.fonts.semibold }]}>
-            {recentEntry.title}
-          </Text>
-          <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.body }]}>
-            {recentEntry.summary}
-          </Text>
-        </View>
-        <Feather accessible={false} name="chevron-right" size={16} color={theme.muted} />
-      </Pressable>
+      {recentEntry ? (
+        <>
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Recent journal entry, ${recentEntry.title}`}
+            onPress={() => onOpenEntry(recentEntry.id)}
+            style={({ pressed }) => [styles.infoRow, pressed && styles.pressed]}
+          >
+            <Feather accessible={false} name="book-open" size={22} color={theme.accent} />
+            <View style={styles.rowCopy}>
+              <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.medium }]}>
+                Recent journal entry
+              </Text>
+              <Text style={[styles.entryTitle, { color: theme.foreground, fontFamily: theme.fonts.semibold }]}>
+                {recentEntry.title}
+              </Text>
+              <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.body }]}>
+                {recentEntry.reflection ?? recentEntry.nextAction}
+              </Text>
+            </View>
+            <Feather accessible={false} name="chevron-right" size={16} color={theme.muted} />
+          </Pressable>
+        </>
+      ) : showEmpty ? (
+        <Text style={[styles.meta, { color: theme.muted, fontFamily: theme.fonts.body }]}>
+          Your first journal entry will appear here after you save it.
+        </Text>
+      ) : null}
     </View>
   );
 }

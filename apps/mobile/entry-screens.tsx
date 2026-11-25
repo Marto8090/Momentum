@@ -8,18 +8,20 @@ export type EntryDraft = {
   difficulty: string;
   activity: string;
   strategy: string;
+  nextAction: string;
 };
 
 export const initialEntryDraft: EntryDraft = {
-  task: "Write project proposal",
-  difficulty: "Unclear first step",
-  activity: "Checked social media",
-  strategy: "Work for 5 minutes",
+  task: "",
+  difficulty: "",
+  activity: "",
+  strategy: "",
+  nextAction: "",
 };
 
-const difficulties = [initialEntryDraft.difficulty, "Overwhelm", "Distraction", "Low energy"];
-const activities = [initialEntryDraft.activity, "Read messages", "Browsed on my phone", "Worked on something else"];
-const strategies = [initialEntryDraft.strategy, "Split it into parts", "Put my phone away", "Write down the first step"];
+const difficulties = ["Unclear first step", "Overwhelm", "Distraction", "Low energy"];
+const activities = ["Checked social media", "Read messages", "Browsed on my phone", "Worked on something else"];
+const strategies = ["Work for 5 minutes", "Split it into parts", "Remove distractions", "Put my phone away", "Write down the first step"];
 
 type EntryFormProps = {
   theme: AccountTheme;
@@ -29,15 +31,18 @@ type EntryFormProps = {
   onBack: () => void;
 };
 
-export function FormBack({ theme, label, onBack }: {
+export function FormBack({ theme, label, onBack, disabled = false }: {
   theme: AccountTheme;
   label?: string;
   onBack: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label ?? "Back"}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onBack}
       style={({ pressed }) => [styles.back, pressed && styles.pressed]}
     >
@@ -51,13 +56,14 @@ export function FormBack({ theme, label, onBack }: {
   );
 }
 
-function OptionField({ theme, label, value, options, onSelect, placeholder = "Select an option" }: {
+function OptionField({ theme, label, value, options, onSelect, placeholder = "Select an option", disabled = false }: {
   theme: AccountTheme;
   label: string;
   value: string;
   options: readonly string[];
   onSelect: (value: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [showOptions, setShowOptions] = useState(false);
   const closeOptions = () => setShowOptions(false);
@@ -74,7 +80,8 @@ function OptionField({ theme, label, value, options, onSelect, placeholder = "Se
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityValue={{ text: displayValue }}
-        accessibilityState={{ expanded: showOptions }}
+        accessibilityState={{ expanded: showOptions, disabled }}
+        disabled={disabled}
         onPress={() => {
           Keyboard.dismiss();
           setShowOptions(true);
@@ -204,7 +211,7 @@ export function EntryDetailsScreen({ theme, draft, mode = "add", onDraftChange, 
           label="What were you planning to do?"
           value={draft.task}
           onChangeText={(task) => onDraftChange({ ...draft, task })}
-          placeholder={mode === "edit" ? "Enter a task" : "Write project proposal"}
+          placeholder={mode === "edit" ? "Enter a task" : "e.g. Write project proposal"}
           returnKeyType="done"
         />
         <View style={styles.field}>
@@ -228,22 +235,31 @@ export function EntryDetailsScreen({ theme, draft, mode = "add", onDraftChange, 
           />
           <FutureOption theme={theme} kind="activity" />
         </View>
-        <ActionButton theme={theme} label="Choose a strategy" onPress={onContinue} disabled={!draft.task.trim()} />
+        <ActionButton
+          theme={theme}
+          label="Choose a strategy"
+          onPress={onContinue}
+          disabled={!draft.task.trim() || (mode === "add" && (!draft.difficulty || !draft.activity))}
+        />
       </View>
     </AppScreen>
   );
 }
 
-export function EntryStrategyScreen({ theme, draft, mode = "add", onDraftChange, onBack, onFinish }: EntryFormProps & {
+export function EntryStrategyScreen({
+  theme, draft, mode = "add", onDraftChange, onBack, onFinish, saving = false, error,
+}: EntryFormProps & {
   onFinish: () => void;
+  saving?: boolean;
+  error?: string;
 }) {
   const { height } = useWindowDimensions();
   const muted = { color: theme.muted, fontFamily: theme.fonts.body };
-  const saveSpacing = Math.min(168, height * 0.19);
+  const saveSpacing = Math.min(84, height * 0.10);
 
   return (
     <AppScreen theme={theme} contentContainerStyle={styles.page}>
-      <FormBack theme={theme} onBack={onBack} />
+      <FormBack theme={theme} onBack={onBack} disabled={saving} />
       <View style={[styles.intro, styles.strategyIntro]}>
         <Text style={[styles.step, muted]}>Step 2 of 2</Text>
         <ScreenHeading theme={theme} title="Start small." description={draft.task} />
@@ -256,14 +272,34 @@ export function EntryStrategyScreen({ theme, draft, mode = "add", onDraftChange,
             value={draft.strategy}
             options={strategies}
             placeholder="No strategy selected"
+            disabled={saving}
             onSelect={(strategy) => onDraftChange({ ...draft, strategy })}
           />
           <Text style={[styles.hint, muted]}>Choose what feels manageable today.</Text>
         </View>
+        <FormField
+          theme={theme}
+          label="Small next step"
+          placeholder="e.g. Open the proposal and write one bullet point"
+          value={draft.nextAction}
+          editable={!saving}
+          onChangeText={(nextAction) => onDraftChange({ ...draft, nextAction })}
+          returnKeyType="done"
+        />
+        {error ? (
+          <Text accessibilityRole="alert" style={[styles.hint, { color: theme.danger, fontFamily: theme.fonts.body }]}>
+            {error}
+          </Text>
+        ) : null}
         <View style={[styles.save, { marginTop: saveSpacing }]}>
-          <ActionButton theme={theme} label={mode === "edit" ? "Save changes" : "Save and try"} onPress={onFinish} />
+          <ActionButton
+            theme={theme}
+            label={saving ? "Saving…" : mode === "edit" ? "Save changes" : "Save and try"}
+            onPress={onFinish}
+            disabled={saving || (mode === "add" && (!draft.strategy || !draft.nextAction.trim()))}
+          />
           <Text style={[styles.hint, styles.centered, muted]}>
-            Reflect later. You can add a second strategy if you try another.
+            Try your small step, then return to Journal.
           </Text>
         </View>
       </View>

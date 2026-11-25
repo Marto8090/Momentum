@@ -1,4 +1,4 @@
-import { pendingJournalEntry, recentJournalEntry, type JournalEntry } from "./journal-data";
+import type { JournalEntry } from "./journal-data";
 
 export type Strategy = {
   id: string;
@@ -12,7 +12,7 @@ export type Strategy = {
   journalEntry?: JournalEntry;
 };
 
-export const sampleStrategies: readonly Strategy[] = [
+const builtInStrategies: readonly Omit<Strategy, "reflectionSummary" | "journalEntry">[] = [
   {
     id: "work-for-five-minutes",
     title: "Work for 5 minutes",
@@ -25,8 +25,6 @@ export const sampleStrategies: readonly Strategy[] = [
       "Set a timer for five minutes.",
       "When it ends, decide whether to continue.",
     ],
-    reflectionSummary: "Helped in 1 of 2 reflections",
-    journalEntry: recentJournalEntry,
   },
   {
     id: "split-it-into-parts",
@@ -40,8 +38,6 @@ export const sampleStrategies: readonly Strategy[] = [
       "Choose one you can start now.",
       "Work on that part before deciding what comes next.",
     ],
-    reflectionSummary: "Waiting for a reflection",
-    journalEntry: pendingJournalEntry,
   },
   {
     id: "remove-distractions",
@@ -55,6 +51,19 @@ export const sampleStrategies: readonly Strategy[] = [
       "Move it out of reach or silence it for a few minutes.",
       "Return to the first action you planned to take.",
     ],
-    reflectionSummary: "Not tried yet",
   },
 ];
+
+export function getJournalStrategies(entries: readonly JournalEntry[]): Strategy[] {
+  return builtInStrategies.map((strategy) => {
+    const related = entries.filter((entry) => entry.strategy === strategy.title);
+    const reflectionCount = related.filter((entry) => entry.reflection).length;
+    return {
+      ...strategy,
+      journalEntry: related[0],
+      reflectionSummary: reflectionCount > 0
+        ? `${reflectionCount} ${reflectionCount === 1 ? "reflection" : "reflections"}`
+        : related.length ? "Waiting for a reflection" : "Not tried yet",
+    };
+  });
+}

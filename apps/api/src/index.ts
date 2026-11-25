@@ -2,6 +2,7 @@ import express, { type RequestHandler } from "express";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { clientIpHeader, createOwnerAuth } from "./auth.ts";
 import { createDatabasePool } from "./database.ts";
+import { createJournalRouter } from "./journal.ts";
 
 const app = express();
 const database = createDatabasePool({ query_timeout: 2500 });
@@ -43,8 +44,8 @@ const handleAuthRequest: RequestHandler = async (request, response) => {
 app.post(["/api/auth/sign-in/username", "/api/auth/sign-out"], handleAuthRequest);
 app.get("/api/auth/get-session", handleAuthRequest);
 
-app.get("/api/me", async (request, response) => {
-  response.set("Cache-Control", "no-store");
+const requireOwner: RequestHandler = async (request, response, next) => {
+  response.set("Cache-Control", "private, no-store");
   if (!auth) {
     response.status(503).json({ error: "Authentication is unavailable." });
     return;
@@ -59,16 +60,31 @@ app.get("/api/me", async (request, response) => {
       response.status(401).json({ error: "Sign in to continue." });
       return;
     }
-    response.json({
-      id: session.user.id,
-      email: session.user.email,
-      username: session.user.displayUsername ?? session.user.username ?? null,
-    });
+    response.locals.owner = session.user;
   } catch {
     response.status(503).json({ error: "Authentication is unavailable." });
+    return;
   }
+  next();
+};
+
+app.get("/api/me", requireOwner, (_request, response) => {
+  const owner = response.locals.owner;
+  response.json({
+    id: owner.id,
+    email: owner.email,
+    username: owner.displayUsername ?? owner.username ?? null,
+  });
 });
 
-app.listen(port, host, () => {
+app.use("/api/entries", requireOwner, createJournalRouter(database));
+
+app.listen(port, host, (error?: Error) => {
+  if (error) {
+    console.error(`Momentum API could not listen on http://${host}:${port}: ${error.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`Momentum API listening on http://${host}:${port}`);
 });
