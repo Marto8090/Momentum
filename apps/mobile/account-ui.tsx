@@ -85,9 +85,11 @@ export function AppScreen({
   theme,
   children,
   contentContainerStyle,
+  footer,
 }: Themed & {
   children: ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  footer?: ReactNode;
 }) {
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
@@ -102,6 +104,7 @@ export function AppScreen({
         >
           {children}
         </ScrollView>
+        {footer}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -204,20 +207,24 @@ export function FormField({
 export function ActionButton({
   theme,
   label,
+  icon,
   onPress,
-  disabled = false,
+  disabled = !onPress,
   variant = "filled",
 }: Themed & {
   label: string;
-  onPress: () => void;
+  icon?: FeatherIcon;
+  onPress?: () => void;
   disabled?: boolean;
   variant?: "filled" | "outline";
 }) {
   const filled = variant === "filled";
+  const color = filled ? theme.onAccent : theme.accent;
 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -231,12 +238,8 @@ export function ActionButton({
         pressed && styles.pressed,
       ]}
     >
-      <Text
-        style={[
-          styles.buttonLabel,
-          { color: filled ? theme.onAccent : theme.accent, fontFamily: theme.fonts.bold },
-        ]}
-      >
+      {icon ? <Feather accessible={false} name={icon} size={19} color={color} /> : null}
+      <Text style={[styles.buttonLabel, { color, fontFamily: theme.fonts.bold }]}>
         {label}
       </Text>
     </Pressable>
@@ -389,6 +392,35 @@ function AccountSectionHeading({ theme, title }: Themed & { title: string }) {
   );
 }
 
+export function AccountAvatar({ theme, ownerName, compact = false }: Themed & {
+  ownerName: string;
+  compact?: boolean;
+}) {
+  const initials = ownerName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => Array.from(part)[0] ?? "")
+    .join("")
+    .toUpperCase();
+
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[
+        styles.avatar,
+        compact && styles.compactAvatar,
+        { backgroundColor: theme.surfaceRaised, borderColor: theme.border },
+      ]}
+    >
+      <Text style={[styles.avatarLabel, { color: theme.foreground, fontFamily: theme.fonts.medium }]}>
+        {initials || "M"}
+      </Text>
+    </View>
+  );
+}
+
 export function YourAccount({
   theme,
   ownerName,
@@ -407,14 +439,6 @@ export function YourAccount({
   signingOut: boolean;
   notice?: string;
 }) {
-  const initials = ownerName
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => Array.from(part)[0] ?? "")
-    .join("")
-    .toUpperCase();
-
   return (
     <AppScreen theme={theme} contentContainerStyle={styles.accountContent}>
       <View style={styles.accountHeader}>
@@ -433,16 +457,7 @@ export function YourAccount({
       </View>
       <ScreenHeading theme={theme} title="Your account" />
       <View style={styles.profile}>
-        <View
-          style={[
-            styles.avatar,
-            { backgroundColor: theme.surfaceRaised, borderColor: theme.border },
-          ]}
-        >
-          <Text style={[styles.avatarLabel, { color: theme.foreground, fontFamily: theme.fonts.medium }]}>
-            {initials || "M"}
-          </Text>
-        </View>
+        <AccountAvatar theme={theme} ownerName={ownerName} />
         <Text style={[styles.profileName, { color: theme.foreground, fontFamily: theme.fonts.heading }]}>
           {ownerName}
         </Text>
@@ -515,14 +530,16 @@ const styles = StyleSheet.create({
   eye: { width: 46, justifyContent: "center", alignItems: "center" },
   button: {
     minHeight: 55,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 9,
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
-  buttonLabel: { fontSize: 15, lineHeight: 20, textAlign: "center" },
+  buttonLabel: { flexShrink: 1, fontSize: 15, lineHeight: 20, textAlign: "center" },
   link: { minHeight: 36, paddingHorizontal: 3, justifyContent: "center" },
   linkLabel: { fontSize: 14, lineHeight: 19 },
   pressed: { opacity: 0.75 },
@@ -546,6 +563,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  compactAvatar: { width: 44, height: 44, borderRadius: 22 },
   avatarLabel: { fontSize: 16, lineHeight: 22 },
   profileName: { flex: 1, flexShrink: 1, fontSize: 22, lineHeight: 28 },
   accountRows: { marginTop: 18 },

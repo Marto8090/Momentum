@@ -4,10 +4,12 @@ import { DMSans_500Medium } from "@expo-google-fonts/dm-sans/500Medium";
 import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans/600SemiBold";
 import { DMSans_700Bold } from "@expo-google-fonts/dm-sans/700Bold";
 import { Lora_600SemiBold } from "@expo-google-fonts/lora/600SemiBold";
+import Feather from "@expo/vector-icons/Feather";
 import { useFonts } from "expo-font";
-import { ActivityIndicator, BackHandler, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
+  AccountAvatar,
   ActionButton,
   AppScreen,
   Brand,
@@ -20,6 +22,14 @@ import {
   type Appearance,
 } from "./account-ui";
 import { authClient, type MomentumAuthClient } from "./auth-client";
+import { HomeScreen } from "./home-screen";
+import { JournalEntryScreen, JournalScreen } from "./journal-screens";
+import {
+  pendingJournalEntry,
+  recentJournalEntry,
+  sampleJournalEntries,
+  type JournalEntry,
+} from "./journal-data";
 
 export default function App() {
   const [appearance, setAppearance] = useState<Appearance>("dark");
@@ -297,15 +307,28 @@ function CreateAccount({ theme, onLogIn, onCreateAccount }: {
   );
 }
 
+type JournalTab = "home" | "journal";
+type SignedInDestination = { name: "account" } | { name: "entry"; entry: JournalEntry };
+
 function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange }: OwnerAccessProps & {
   ownerName: string;
 }) {
-  const [showAccount, setShowAccount] = useState(false);
+  const [tab, setTab] = useState<JournalTab>("home");
+  const [destination, setDestination] = useState<SignedInDestination | null>(null);
   const [notice, setNotice] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const submitting = useRef(false);
 
-  useBackToParent(showAccount ? () => setShowAccount(false) : undefined);
+  function closeDestination() {
+    setDestination(null);
+  }
+
+  useBackToParent(destination ? closeDestination : tab === "journal" ? () => setTab("home") : undefined);
+
+  function openEntry(id: string) {
+    const entry = sampleJournalEntries.find((sample) => sample.id === id);
+    if (entry) setDestination({ name: "entry", entry });
+  }
 
   async function signOut() {
     if (submitting.current) return;
@@ -324,14 +347,14 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     }
   }
 
-  if (showAccount) {
+  if (destination?.name === "account") {
     return (
       <YourAccount
         theme={theme}
         ownerName={ownerName}
         appearance={appearance}
         onAppearanceChange={onAppearanceChange}
-        onBack={() => setShowAccount(false)}
+        onBack={closeDestination}
         onSignOut={signOut}
         signingOut={signingOut}
         notice={notice}
@@ -339,16 +362,99 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     );
   }
 
+  if (destination?.name === "entry") {
+    return (
+      <JournalEntryScreen
+        theme={theme}
+        entry={destination.entry}
+        backLabel={tab === "home" ? "Home" : "Journal"}
+        onBack={closeDestination}
+      />
+    );
+  }
+
   return (
-    <AppScreen theme={theme}>
-      <Brand theme={theme} />
-      <View style={styles.simplePage}>
-        <ScreenHeading theme={theme} title={`Hi, ${ownerName}`} description="You're signed in to your private journal." />
-        {notice ? <Notice theme={theme} message={notice} error /> : null}
-        <ActionButton theme={theme} label="Account" onPress={() => setShowAccount(true)} disabled={signingOut} />
-        <ActionButton theme={theme} label={signingOut ? "Signing out…" : "Sign out"} onPress={signOut} disabled={signingOut} variant="outline" />
+    <AppScreen
+      theme={theme}
+      contentContainerStyle={styles.journalContent}
+      footer={
+        <View>
+          {tab === "journal" ? (
+            <View style={styles.journalAction}>
+              <ActionButton theme={theme} label="Add an entry" icon="edit-2" disabled />
+            </View>
+          ) : null}
+          <JournalTabs theme={theme} currentTab={tab} onTabChange={setTab} />
+        </View>
+      }
+    >
+      <View style={styles.journalHeader}>
+        <Brand theme={theme} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Account"
+          accessibilityState={{ disabled: signingOut }}
+          disabled={signingOut}
+          onPress={() => setDestination({ name: "account" })}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <AccountAvatar theme={theme} ownerName={ownerName} compact />
+        </Pressable>
       </View>
+      {notice ? <Notice theme={theme} message={notice} error /> : null}
+      {tab === "home" ? (
+        <HomeScreen
+          theme={theme}
+          ownerName={ownerName}
+          recentEntry={recentJournalEntry}
+          pendingEntry={pendingJournalEntry}
+          onOpenEntry={openEntry}
+        />
+      ) : (
+        <JournalScreen theme={theme} entries={sampleJournalEntries} onOpenEntry={openEntry} />
+      )}
     </AppScreen>
+  );
+}
+
+const journalTabs = [
+  { id: "home", label: "Home", icon: "home" },
+  { id: "journal", label: "Journal", icon: "book" },
+  { id: "strategies", label: "Strategies", icon: "sun" },
+  { id: "insights", label: "Insights", icon: "bar-chart-2" },
+] as const;
+
+function JournalTabs({ theme, currentTab, onTabChange }: {
+  theme: AccountTheme;
+  currentTab: JournalTab;
+  onTabChange: (tab: JournalTab) => void;
+}) {
+  return (
+    <View accessibilityRole="tablist" style={[styles.journalTabs, { borderColor: theme.border }]}>
+      {journalTabs.map(({ id, label, icon }) => {
+        const available = id === "home" || id === "journal";
+        const selected = currentTab === id;
+        const color = selected ? theme.accent : theme.muted;
+
+        return (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityLabel={label}
+            accessibilityState={{ selected, disabled: !available }}
+            disabled={!available}
+            key={id}
+            onPress={available ? () => onTabChange(id) : undefined}
+            style={({ pressed }) => [styles.journalTab, pressed && styles.pressed]}
+          >
+            <Feather accessible={false} name={icon} size={20} color={color} />
+            <Text style={[styles.tabLabel, { color, fontFamily: theme.fonts.semibold }]}>{label}</Text>
+            <View
+              style={[styles.tabIndicator, { backgroundColor: selected ? theme.accent : "transparent" }]}
+            />
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -375,4 +481,12 @@ const styles = StyleSheet.create({
   alternate: { alignItems: "center", marginTop: 12 },
   signInAlternate: { marginTop: 20 },
   helper: { fontSize: 14, lineHeight: 21 },
+  journalContent: { paddingBottom: 14 },
+  journalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 },
+  journalAction: { paddingHorizontal: 26, paddingTop: 8, paddingBottom: 14 },
+  journalTabs: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12 },
+  journalTab: { flex: 1, minHeight: 68, alignItems: "center", justifyContent: "center", gap: 4, padding: 4 },
+  tabLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" },
+  tabIndicator: { width: 4, height: 4, borderRadius: 2 },
+  pressed: { opacity: 0.75 },
 });
