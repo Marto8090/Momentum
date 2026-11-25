@@ -4,6 +4,7 @@
     "slug": "momentum",
     "scheme": "momentum",
     "version": "0.1.0",
+    "userInterfaceStyle": "automatic",
     "platforms": ["android", "ios"]
   }
 }

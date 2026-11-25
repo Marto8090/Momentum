@@ -11,6 +11,8 @@
   },
   "scripts": {
     "dev:mobile": "npm run start --workspace @momentum/mobile --",
+    "dev:mobile:local": "npm run start --workspace @momentum/mobile -- --momentum-api=local",
+    "dev:mobile:azure": "npm run start --workspace @momentum/mobile -- --momentum-api=azure",
     "dev:api": "npm run dev --workspace @momentum/api",
     "typecheck": "npm run typecheck --workspaces",
     "build:api": "npm run build --workspace @momentum/api",

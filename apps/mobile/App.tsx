@@ -1,61 +1,145 @@
-import { useRef, useState, type ComponentRef } from "react";
-import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
+import { DMSans_400Regular } from "@expo-google-fonts/dm-sans/400Regular";
+import { DMSans_500Medium } from "@expo-google-fonts/dm-sans/500Medium";
+import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans/600SemiBold";
+import { DMSans_700Bold } from "@expo-google-fonts/dm-sans/700Bold";
+import { Lora_600SemiBold } from "@expo-google-fonts/lora/600SemiBold";
+import { useFonts } from "expo-font";
+import { ActivityIndicator, BackHandler, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+  ActionButton,
+  AppScreen,
+  Brand,
+  FormField,
+  LinkButton,
+  ScreenHeading,
+  YourAccount,
+  useAccountTheme,
+  type AccountTheme,
+  type Appearance,
+} from "./account-ui";
 import { authClient, type MomentumAuthClient } from "./auth-client";
 
 export default function App() {
+  const [appearance, setAppearance] = useState<Appearance>("dark");
+  const theme = useAccountTheme(appearance);
+  const [fontsLoaded, fontError] = useFonts({
+    Lora_600SemiBold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
+  });
+
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.screen}>
-        <StatusBar style="light" />
-        <KeyboardAvoidingView
-          style={styles.screen}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <Text style={styles.brand}>momentum</Text>
-            {authClient ? (
-              <OwnerAccess client={authClient} />
-            ) : (
-              <View style={styles.section}>
-                <Text accessibilityRole="header" style={styles.title}>Connect to Momentum</Text>
-                <Text style={styles.description}>
-                  Set the API address using EXPO_PUBLIC_API_URL and restart the app.
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+      {!fontsLoaded && !fontError ? (
+        <AppScreen theme={theme}>
+          <ActivityIndicator accessibilityLabel="Loading Momentum" color={theme.accent} />
+        </AppScreen>
+      ) : authClient ? (
+        <OwnerAccess
+          client={authClient}
+          theme={theme}
+          appearance={appearance}
+          onAppearanceChange={setAppearance}
+        />
+      ) : (
+        <AppScreen theme={theme}>
+          <Brand theme={theme} />
+          <View style={styles.simplePage}>
+            <ScreenHeading
+              theme={theme}
+              title="Connect to Momentum"
+              description="Set the API address using EXPO_PUBLIC_API_URL and restart the app."
+            />
+          </View>
+        </AppScreen>
+      )}
     </SafeAreaProvider>
   );
 }
 
-function OwnerAccess({ client }: { client: MomentumAuthClient }) {
+type OwnerAccessProps = {
+  client: MomentumAuthClient;
+  theme: AccountTheme;
+  appearance: Appearance;
+  onAppearanceChange: (appearance: Appearance) => void;
+};
+
+function OwnerAccess({ client, ...props }: OwnerAccessProps) {
   const { data, error, isPending, refetch } = client.useSession();
+  const { theme } = props;
+
+  if (isPending || error) {
+    return (
+      <AppScreen theme={theme}>
+        <Brand theme={theme} />
+        <View style={styles.simplePage}>
+          {isPending ? (
+            <ActivityIndicator accessibilityLabel="Checking session" color={theme.accent} />
+          ) : (
+            <>
+              <ScreenHeading
+                theme={theme}
+                title="Couldn't check your session"
+                description="Check that Momentum is reachable and try again."
+              />
+              <ActionButton theme={theme} label="Try again" onPress={() => void refetch()} />
+            </>
+          )}
+        </View>
+      </AppScreen>
+    );
+  }
+
+  if (data?.user) {
+    const { id, displayUsername, username, name } = data.user;
+    return (
+      <SignedInArea
+        key={id}
+        client={client}
+        ownerName={displayUsername || username || name}
+        {...props}
+      />
+    );
+  }
+
+  return <SignInArea client={client} theme={theme} />;
+}
+
+function useBackToParent(onBack: (() => void) | undefined) {
+  useEffect(() => {
+    if (!onBack) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      onBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onBack]);
+}
+
+const accountPreviewMessage = "Account creation is coming later.";
+
+function SignInArea({ client, theme }: Pick<OwnerAccessProps, "client" | "theme">) {
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
+  const [accountPreviewed, setAccountPreviewed] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const passwordInput = useRef<ComponentRef<typeof TextInput>>(null);
+
+  useBackToParent(showCreateAccount ? () => setShowCreateAccount(false) : undefined);
 
   async function signIn() {
     if (submitting.current || !username.trim() || !password) return;
     submitting.current = true;
     setBusy(true);
     setNotice("");
+    setAccountPreviewed(false);
 
     try {
       const result = await client.signIn.username({ username: username.trim(), password });
@@ -76,10 +160,157 @@ function OwnerAccess({ client }: { client: MomentumAuthClient }) {
     }
   }
 
+  if (showCreateAccount) {
+    return (
+      <CreateAccount
+        theme={theme}
+        onLogIn={() => setShowCreateAccount(false)}
+        onCreateAccount={() => {
+          setShowCreateAccount(false);
+          setAccountPreviewed(true);
+        }}
+      />
+    );
+  }
+
+  return (
+    <AppScreen theme={theme}>
+      <Brand theme={theme} />
+      <View style={styles.signInPage}>
+        <ScreenHeading theme={theme} title="Welcome back" description="Sign in to your private journal." />
+        <View style={[styles.form, styles.signInForm]}>
+          <FormField
+            theme={theme}
+            label="Username"
+            placeholder="Your username"
+            autoCapitalize="none"
+            autoComplete="username"
+            autoCorrect={false}
+            editable={!busy}
+            onChangeText={setUsername}
+            onSubmitEditing={() => passwordInput.current?.focus()}
+            returnKeyType="next"
+            value={username}
+          />
+          <FormField
+            theme={theme}
+            label="Password"
+            inputRef={passwordInput}
+            placeholder="Your password"
+            autoCapitalize="none"
+            autoComplete="current-password"
+            autoCorrect={false}
+            editable={!busy}
+            onChangeText={setPassword}
+            onSubmitEditing={signIn}
+            returnKeyType="go"
+            password
+            value={password}
+          />
+        </View>
+        <LinkButton theme={theme} label="Forgot password?" align="end" disabled />
+        {notice ? <Notice theme={theme} message={notice} error /> : null}
+        {accountPreviewed ? <Notice theme={theme} message={accountPreviewMessage} /> : null}
+        <View style={styles.mainAction}>
+          <ActionButton
+            theme={theme}
+            label={busy ? "Signing in…" : "Sign in"}
+            disabled={busy || !username.trim() || !password}
+            onPress={signIn}
+          />
+        </View>
+        <View style={[styles.alternate, styles.signInAlternate]}>
+          <Text style={[styles.helper, { color: theme.muted, fontFamily: theme.fonts.body }]}>New to Momentum?</Text>
+          <LinkButton
+            theme={theme}
+            label="Create account"
+            disabled={busy}
+            onPress={() => {
+              setPassword("");
+              setNotice("");
+              setAccountPreviewed(false);
+              setShowCreateAccount(true);
+            }}
+          />
+        </View>
+      </View>
+    </AppScreen>
+  );
+}
+
+function CreateAccount({ theme, onLogIn, onCreateAccount }: {
+  theme: AccountTheme;
+  onLogIn: () => void;
+  onCreateAccount: () => void;
+}) {
+  return (
+    <AppScreen theme={theme}>
+      <Brand theme={theme} />
+      <View style={styles.createAccountPage}>
+        <ScreenHeading theme={theme} title="Create your account" description="A private space for small steps." />
+        <View style={[styles.form, styles.createAccountForm]}>
+          <FormField
+            theme={theme}
+            label="Username"
+            placeholder="Your username"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <FormField
+            theme={theme}
+            label="Email"
+            placeholder="you@example.com"
+            autoComplete="off"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <FormField
+            theme={theme}
+            label="Password"
+            placeholder="Your password"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect={false}
+            password
+          />
+          <FormField
+            theme={theme}
+            label="Confirm password"
+            placeholder="Repeat your password"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect={false}
+            password
+          />
+        </View>
+        <View style={styles.mainAction}>
+          <ActionButton theme={theme} label="Create account" onPress={onCreateAccount} />
+        </View>
+        <View style={styles.alternate}>
+          <Text style={[styles.helper, { color: theme.muted, fontFamily: theme.fonts.body }]}>Already have an account?</Text>
+          <LinkButton theme={theme} label="Log in" onPress={onLogIn} />
+        </View>
+      </View>
+    </AppScreen>
+  );
+}
+
+function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange }: OwnerAccessProps & {
+  ownerName: string;
+}) {
+  const [showAccount, setShowAccount] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+  const submitting = useRef(false);
+
+  useBackToParent(showAccount ? () => setShowAccount(false) : undefined);
+
   async function signOut() {
     if (submitting.current) return;
     submitting.current = true;
-    setBusy(true);
+    setSigningOut(true);
     setNotice("");
 
     try {
@@ -89,131 +320,59 @@ function OwnerAccess({ client }: { client: MomentumAuthClient }) {
       setNotice("Couldn't confirm sign-out with the server.");
     } finally {
       submitting.current = false;
-      setBusy(false);
+      setSigningOut(false);
     }
   }
 
-  if (isPending) {
-    return <ActivityIndicator accessibilityLabel="Checking session" color="#EDB565" />;
-  }
-
-  if (error && !notice) {
+  if (showAccount) {
     return (
-      <View style={styles.section}>
-        <Text accessibilityRole="header" style={styles.title}>Couldn't check your session</Text>
-        <Text style={styles.description}>Check that Momentum is reachable and try again.</Text>
-        <ActionButton label="Try again" onPress={() => void refetch()} />
-      </View>
-    );
-  }
-
-  if (data?.user && !error) {
-    const ownerName = data.user.displayUsername ?? data.user.username ?? data.user.name;
-    return (
-      <View style={styles.section}>
-        <Text accessibilityRole="header" style={styles.title}>Hi, {ownerName}</Text>
-        <Text style={styles.description}>You're signed in to your private journal.</Text>
-        {notice ? <Text accessibilityRole="alert" style={styles.notice}>{notice}</Text> : null}
-        <ActionButton label={busy ? "Signing out…" : "Sign out"} disabled={busy} onPress={signOut} />
-      </View>
+      <YourAccount
+        theme={theme}
+        ownerName={ownerName}
+        appearance={appearance}
+        onAppearanceChange={onAppearanceChange}
+        onBack={() => setShowAccount(false)}
+        onSignOut={signOut}
+        signingOut={signingOut}
+        notice={notice}
+      />
     );
   }
 
   return (
-    <View style={styles.section}>
-      <Text accessibilityRole="header" style={styles.title}>Welcome back</Text>
-      <Text style={styles.description}>Sign in to your private journal.</Text>
-      <View style={styles.fields}>
-        <View style={styles.field}>
-          <Text style={styles.label}>Username</Text>
-          <TextInput
-            accessibilityLabel="Username"
-            autoCapitalize="none"
-            autoComplete="username"
-            autoCorrect={false}
-            editable={!busy}
-            onChangeText={setUsername}
-            onSubmitEditing={() => passwordInput.current?.focus()}
-            returnKeyType="next"
-            style={styles.input}
-            value={username}
-          />
-        </View>
-        <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            ref={passwordInput}
-            accessibilityLabel="Password"
-            autoCapitalize="none"
-            autoComplete="current-password"
-            editable={!busy}
-            onChangeText={setPassword}
-            onSubmitEditing={signIn}
-            returnKeyType="go"
-            secureTextEntry
-            style={styles.input}
-            value={password}
-          />
-        </View>
+    <AppScreen theme={theme}>
+      <Brand theme={theme} />
+      <View style={styles.simplePage}>
+        <ScreenHeading theme={theme} title={`Hi, ${ownerName}`} description="You're signed in to your private journal." />
+        {notice ? <Notice theme={theme} message={notice} error /> : null}
+        <ActionButton theme={theme} label="Account" onPress={() => setShowAccount(true)} disabled={signingOut} />
+        <ActionButton theme={theme} label={signingOut ? "Signing out…" : "Sign out"} onPress={signOut} disabled={signingOut} variant="outline" />
       </View>
-      {notice ? <Text accessibilityRole="alert" style={styles.notice}>{notice}</Text> : null}
-      <ActionButton
-        label={busy ? "Signing in…" : "Sign in"}
-        disabled={busy || !username.trim() || !password}
-        onPress={signIn}
-      />
-    </View>
+    </AppScreen>
   );
 }
 
-function ActionButton({ label, disabled = false, onPress }: {
-  label: string;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
+function Notice({ theme, message, error = false }: { theme: AccountTheme; message: string; error?: boolean }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.button, (pressed || disabled) && styles.dimmed]}
+    <Text
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      style={[styles.helper, { color: error ? theme.danger : theme.muted, fontFamily: theme.fonts.body }]}
     >
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
+      {message}
+    </Text>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#111F19" },
-  content: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 26, paddingVertical: 32, gap: 44 },
-  brand: { color: "#EDB565", fontSize: 18, fontWeight: "700", letterSpacing: 0.8 },
-  section: { gap: 14 },
-  title: { color: "#F7F0E4", fontSize: 34, fontWeight: "700" },
-  description: { color: "#BAC8BE", fontSize: 16, lineHeight: 23 },
-  fields: { gap: 18, marginTop: 16 },
-  field: { gap: 8 },
-  label: { color: "#F7F0E4", fontSize: 15, fontWeight: "500" },
-  input: {
-    backgroundColor: "#1C3026",
-    borderColor: "#4E6657",
-    borderWidth: 1,
-    borderRadius: 11,
-    color: "#F7F0E4",
-    fontSize: 16,
-    minHeight: 50,
-    paddingHorizontal: 14,
-  },
-  notice: { color: "#F9BBA8", fontSize: 15, lineHeight: 21 },
-  button: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#EDB565",
-    borderRadius: 12,
-    marginTop: 12,
-    minHeight: 52,
-    padding: 12,
-  },
-  buttonText: { color: "#18221A", fontSize: 16, fontWeight: "700" },
-  dimmed: { opacity: 0.65 },
+  signInPage: { gap: 12, marginTop: 60 },
+  createAccountPage: { gap: 20, marginTop: 35 },
+  simplePage: { gap: 16, marginTop: 44 },
+  form: { gap: 27 },
+  signInForm: { marginTop: 36 },
+  createAccountForm: { marginTop: 27 },
+  mainAction: { marginTop: 16 },
+  alternate: { alignItems: "center", marginTop: 12 },
+  signInAlternate: { marginTop: 20 },
+  helper: { fontSize: 14, lineHeight: 21 },
 });

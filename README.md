@@ -57,17 +57,20 @@ $env:MOMENTUM_EXPO_ORIGIN = "exp://${momentumIp}:8081"
 npm.cmd run dev:api
 ```
 
-Save the mobile API address in `apps/mobile/.env.development.local`. The mobile start command uses this value ahead of an address already set in your terminal.
+Save the API addresses once in `apps/mobile/.env.development.local`. Use your Azure Container App's HTTPS URL if you also test against Azure.
 
 ```dotenv
-EXPO_PUBLIC_API_URL=http://192.168.1.23:3001
+MOMENTUM_LOCAL_API_URL=http://192.168.1.23:3001
+MOMENTUM_AZURE_API_URL=https://your-api.azurecontainerapps.io
 ```
 
-In the mobile terminal, run:
+Start the local mobile preview in a separate terminal.
 
 ```powershell
-npm.cmd run dev:mobile -- --lan --port 8081
+npm.cmd run dev:mobile:local -- --lan --port 8081
 ```
+
+To use Azure, stop Expo with Ctrl+C and run `npm.cmd run dev:mobile:azure`. To switch back, stop Expo and run the local command again. Expo prints the selected API address at startup.
 
 Open the API's `/health` URL in your phone's browser to check connectivity, then scan the Expo Go QR code. If Metro uses a different port, update `MOMENTUM_EXPO_ORIGIN` to match the `exp://` address printed by Metro and restart the API.
 
