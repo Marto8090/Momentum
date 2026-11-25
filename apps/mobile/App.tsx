@@ -22,6 +22,7 @@ import {
   type Appearance,
 } from "./account-ui";
 import { authClient, type MomentumAuthClient } from "./auth-client";
+import { CreateStrategyScreen } from "./create-strategy-screen";
 import { EntryDetailsScreen, EntryStrategyScreen, initialEntryDraft, type EntryDraft } from "./entry-screens";
 import { HomeScreen } from "./home-screen";
 import { getInsightsSummary, type InsightsPeriod, type InsightsView } from "./insights-data";
@@ -321,6 +322,7 @@ type EntryDestination = { name: "entry"; entry: JournalEntry; returnTo?: Strateg
 
 type SignedInDestination =
   | { name: "account" }
+  | { name: "create-strategy" }
   | StrategyDestination
   | EntryDestination
   | { name: "entry-form"; step: "details" | "strategy"; draft: EntryDraft; returnToEntry?: EntryDestination }
@@ -372,6 +374,11 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
   function openStrategy(strategy: Strategy) {
     setPreviewNotice("");
     setDestination({ name: "strategy", strategy });
+  }
+
+  function openCreateStrategy() {
+    setPreviewNotice("");
+    setDestination({ name: "create-strategy" });
   }
 
   function openEntryPreview() {
@@ -462,6 +469,19 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     );
   }
 
+  if (destination?.name === "create-strategy") {
+    return (
+      <CreateStrategyScreen
+        theme={theme}
+        onBack={goBack}
+        onFinish={() => {
+          setPreviewNotice("Saving strategies is coming later.");
+          setDestination(null);
+        }}
+      />
+    );
+  }
+
   if (destination?.name === "entry-form") {
     const { returnToEntry } = destination;
     const mode = returnToEntry ? "edit" : "add";
@@ -523,7 +543,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
               <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={openEntryPreview} />
             </View>
           ) : null}
-          {tab === "strategies" ? <StrategyLibraryFooter theme={theme} /> : null}
+          {tab === "strategies" ? <StrategyLibraryFooter theme={theme} onAddStrategy={openCreateStrategy} /> : null}
           {tab === "insights" ? <InsightsFooter theme={theme} view={insightsView} /> : null}
           <MainTabs theme={theme} currentTab={tab} onTabChange={selectTab} />
         </View>

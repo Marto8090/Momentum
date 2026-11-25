@@ -137,13 +137,16 @@ function StrategyRow({ theme, strategy, onOpenStrategy }: {
   );
 }
 
-export function StrategyLibraryFooter({ theme }: { theme: AccountTheme }) {
+export function StrategyLibraryFooter({ theme, onAddStrategy }: {
+  theme: AccountTheme;
+  onAddStrategy: () => void;
+}) {
   return (
     <View style={[styles.footer, { backgroundColor: theme.background }]}>
       <Text style={[styles.footerNote, { color: theme.muted, fontFamily: theme.fonts.body }]}>
         Your reflections show what works for you.
       </Text>
-      <ActionButton theme={theme} label="Add your own strategy" icon="plus" variant="outline" disabled />
+      <ActionButton theme={theme} label="Add your own strategy" icon="plus" variant="outline" onPress={onAddStrategy} />
     </View>
   );
 }
