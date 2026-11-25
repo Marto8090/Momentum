@@ -3,7 +3,9 @@ export type JournalEntry = {
   title: string;
   groupLabel: string;
   date: string;
+  recordedOn: string;
   time: string;
+  taskType: string;
   blocker: string;
   whatIDidInstead?: string;
   strategy?: string;
@@ -17,7 +19,9 @@ const projectProposal: JournalEntry = {
   title: "Write project proposal",
   groupLabel: "20 Sep",
   date: "20 Sep 2026",
+  recordedOn: "2026-09-20",
   time: "10:30",
+  taskType: "Study",
   blocker: "Unclear first step",
   whatIDidInstead: "Checked social media",
   strategy: "Work for 5 minutes",
@@ -31,7 +35,9 @@ const researchArticle: JournalEntry = {
   title: "Read research article",
   groupLabel: "20 Sep",
   date: "20 Sep 2026",
+  recordedOn: "2026-09-20",
   time: "09:15",
+  taskType: "Study",
   blocker: "Overwhelm",
   whatIDidInstead: "Read messages",
   strategy: "Split it into parts",
@@ -46,7 +52,9 @@ export const sampleJournalEntries: readonly JournalEntry[] = [
     title: "Plan the week",
     groupLabel: "19 Sep",
     date: "19 Sep 2026",
+    recordedOn: "2026-09-19",
     time: "16:20",
+    taskType: "Planning",
     blocker: "Distraction",
     whatIDidInstead: "Browsed on my phone",
     strategy: "Work for 5 minutes",

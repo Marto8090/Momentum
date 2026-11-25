@@ -24,6 +24,8 @@ import {
 import { authClient, type MomentumAuthClient } from "./auth-client";
 import { EntryDetailsScreen, EntryStrategyScreen, initialEntryDraft, type EntryDraft } from "./entry-screens";
 import { HomeScreen } from "./home-screen";
+import { getInsightsSummary, type InsightsPeriod, type InsightsView } from "./insights-data";
+import { InsightsFooter, InsightsScreen } from "./insights-screen";
 import { JournalEntryScreen, JournalScreen } from "./journal-screens";
 import {
   pendingJournalEntry,
@@ -32,6 +34,9 @@ import {
   type JournalEntry,
 } from "./journal-data";
 import { ReflectionScreen } from "./reflection-screen";
+import { sampleStrategies, type Strategy } from "./strategy-data";
+import { StrategyDetailScreen } from "./strategy-detail";
+import { StrategyLibraryFooter, StrategyLibraryScreen } from "./strategy-library";
 
 export default function App() {
   const [appearance, setAppearance] = useState<Appearance>("dark");
@@ -309,51 +314,64 @@ function CreateAccount({ theme, onLogIn, onCreateAccount }: {
   );
 }
 
-type JournalTab = "home" | "journal";
+const tabLabels = { home: "Home", journal: "Journal", strategies: "Strategies", insights: "Insights" };
+type MainTab = keyof typeof tabLabels;
+type StrategyDestination = { name: "strategy"; strategy: Strategy };
+type EntryDestination = { name: "entry"; entry: JournalEntry; returnTo?: StrategyDestination };
+
 type SignedInDestination =
   | { name: "account" }
-  | { name: "entry"; entry: JournalEntry }
-  | { name: "entry-form"; step: "details" | "strategy"; draft: EntryDraft; originalEntry?: JournalEntry }
-  | { name: "reflection"; entry: JournalEntry; returnToEntry: boolean };
+  | StrategyDestination
+  | EntryDestination
+  | { name: "entry-form"; step: "details" | "strategy"; draft: EntryDraft; returnToEntry?: EntryDestination }
+  | { name: "reflection"; entry: JournalEntry; returnToEntry?: EntryDestination };
 
 function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange }: OwnerAccessProps & {
   ownerName: string;
 }) {
-  const [tab, setTab] = useState<JournalTab>("home");
+  const [tab, setTab] = useState<MainTab>("home");
   const [destination, setDestination] = useState<SignedInDestination | null>(null);
+  const [strategyQuery, setStrategyQuery] = useState("");
+  const [savedStrategiesOnly, setSavedStrategiesOnly] = useState(false);
+  const [insightsPeriod, setInsightsPeriod] = useState<InsightsPeriod>("7-days");
+  const [insightsView, setInsightsView] = useState<InsightsView>("patterns");
   const [notice, setNotice] = useState("");
   const [previewNotice, setPreviewNotice] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const submitting = useRef(false);
 
-  const backLabel = tab === "home" ? "Home" : "Journal";
+  const backLabel = tabLabels[tab];
 
   const goBack = useCallback(() => {
     setDestination((current) => {
-      if (current?.name === "entry-form") {
-        if (current.step === "strategy") return { ...current, step: "details" };
-        if (current.originalEntry) return { name: "entry", entry: current.originalEntry };
+      if (current?.name === "entry-form" && current.step === "strategy") {
+        return { ...current, step: "details" };
       }
-      if (current?.name === "reflection" && current.returnToEntry) {
-        return { name: "entry", entry: current.entry };
+      if (current?.name === "entry-form" || current?.name === "reflection") {
+        return current.returnToEntry ?? null;
       }
-      return null;
+      return current?.name === "entry" ? current.returnTo ?? null : null;
     });
   }, []);
 
-  useBackToParent(destination ? goBack : tab === "journal" ? () => selectTab("home") : undefined);
+  useBackToParent(destination ? goBack : tab !== "home" ? () => selectTab("home") : undefined);
 
-  function selectTab(nextTab: JournalTab) {
+  function selectTab(nextTab: MainTab) {
     setPreviewNotice("");
     setTab(nextTab);
   }
 
-  function openEntry(id: string) {
+  function openEntry(id: string, returnTo?: StrategyDestination) {
     const entry = sampleJournalEntries.find((sample) => sample.id === id);
     if (entry) {
       setPreviewNotice("");
-      setDestination({ name: "entry", entry });
+      setDestination({ name: "entry", entry, returnTo });
     }
+  }
+
+  function openStrategy(strategy: Strategy) {
+    setPreviewNotice("");
+    setDestination({ name: "strategy", strategy });
   }
 
   function openEntryPreview() {
@@ -361,12 +379,13 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     setDestination({ name: "entry-form", step: "details", draft: initialEntryDraft });
   }
 
-  function openEditPreview(entry: JournalEntry) {
+  function openEditPreview(returnToEntry: EntryDestination) {
+    const { entry } = returnToEntry;
     setPreviewNotice("");
     setDestination({
       name: "entry-form",
       step: "details",
-      originalEntry: entry,
+      returnToEntry,
       draft: {
         task: entry.title,
         difficulty: entry.blocker,
@@ -380,7 +399,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
     setDestination((current) => current?.name === "entry-form" ? { ...current, draft } : current);
   }
 
-  function openReflection(entry: JournalEntry, returnToEntry = false) {
+  function openReflection(entry: JournalEntry, returnToEntry?: EntryDestination) {
     setPreviewNotice("");
     setDestination({ name: "reflection", entry, returnToEntry });
   }
@@ -422,18 +441,30 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
       <JournalEntryScreen
         theme={theme}
         entry={destination.entry}
-        backLabel={backLabel}
+        backLabel={destination.returnTo ? "Strategy details" : backLabel}
         onBack={goBack}
-        onEdit={() => openEditPreview(destination.entry)}
-        onReflect={() => openReflection(destination.entry, true)}
+        onEdit={() => openEditPreview(destination)}
+        onReflect={() => openReflection(destination.entry, destination)}
         notice={previewNotice ? <Notice theme={theme} message={previewNotice} /> : null}
       />
     );
   }
 
+  if (destination?.name === "strategy") {
+    return (
+      <StrategyDetailScreen
+        theme={theme}
+        strategy={destination.strategy}
+        backLabel={backLabel}
+        onBack={goBack}
+        onOpenEntry={(id) => openEntry(id, destination)}
+      />
+    );
+  }
+
   if (destination?.name === "entry-form") {
-    const originalEntry = destination.originalEntry;
-    const mode = originalEntry ? "edit" : "add";
+    const { returnToEntry } = destination;
+    const mode = returnToEntry ? "edit" : "add";
 
     if (destination.step === "strategy") {
       return (
@@ -444,8 +475,8 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
           onDraftChange={changeDraft}
           onBack={goBack}
           onFinish={() => {
-            setPreviewNotice(originalEntry ? "Saving entry changes is coming later." : "Entry saving is coming later.");
-            setDestination(originalEntry ? { name: "entry", entry: originalEntry } : null);
+            setPreviewNotice(returnToEntry ? "Saving entry changes is coming later." : "Entry saving is coming later.");
+            setDestination(returnToEntry ?? null);
           }}
         />
       );
@@ -457,7 +488,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
         draft={destination.draft}
         mode={mode}
         onDraftChange={changeDraft}
-        backLabel={originalEntry ? "Journal entry" : backLabel}
+        backLabel={returnToEntry ? "Journal entry" : backLabel}
         onBack={goBack}
         onContinue={() => {
           setDestination((current) => current?.name === "entry-form" ? { ...current, step: "strategy" } : current);
@@ -475,7 +506,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
         onBack={goBack}
         onFinish={() => {
           setPreviewNotice("Reflection saving is coming later.");
-          setDestination(destination.returnToEntry ? { name: "entry", entry: destination.entry } : null);
+          setDestination(destination.returnToEntry ?? null);
         }}
       />
     );
@@ -484,7 +515,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
   return (
     <AppScreen
       theme={theme}
-      contentContainerStyle={styles.journalContent}
+      contentContainerStyle={styles.tabContent}
       footer={
         <View>
           {tab === "journal" ? (
@@ -492,11 +523,13 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
               <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={openEntryPreview} />
             </View>
           ) : null}
-          <JournalTabs theme={theme} currentTab={tab} onTabChange={selectTab} />
+          {tab === "strategies" ? <StrategyLibraryFooter theme={theme} /> : null}
+          {tab === "insights" ? <InsightsFooter theme={theme} view={insightsView} /> : null}
+          <MainTabs theme={theme} currentTab={tab} onTabChange={selectTab} />
         </View>
       }
     >
-      <View style={styles.journalHeader}>
+      <View style={styles.tabHeader}>
         <Brand theme={theme} />
         <Pressable
           accessibilityRole="button"
@@ -524,29 +557,48 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
           onAddEntry={openEntryPreview}
           onReflect={() => openReflection(pendingJournalEntry)}
         />
-      ) : (
+      ) : tab === "journal" ? (
         <JournalScreen theme={theme} entries={sampleJournalEntries} onOpenEntry={openEntry} />
+      ) : tab === "strategies" ? (
+        <StrategyLibraryScreen
+          theme={theme}
+          strategies={sampleStrategies}
+          query={strategyQuery}
+          savedOnly={savedStrategiesOnly}
+          onQueryChange={setStrategyQuery}
+          onSavedOnlyChange={setSavedStrategiesOnly}
+          onOpenStrategy={openStrategy}
+        />
+      ) : (
+        <InsightsScreen
+          theme={theme}
+          summary={getInsightsSummary(insightsPeriod)}
+          period={insightsPeriod}
+          view={insightsView}
+          onPeriodChange={setInsightsPeriod}
+          onViewChange={setInsightsView}
+          onOpenStrategy={openStrategy}
+        />
       )}
     </AppScreen>
   );
 }
 
-const journalTabs = [
-  { id: "home", label: "Home", icon: "home" },
-  { id: "journal", label: "Journal", icon: "book" },
-  { id: "strategies", label: "Strategies", icon: "sun" },
-  { id: "insights", label: "Insights", icon: "bar-chart-2" },
+const mainTabs = [
+  { id: "home", label: tabLabels.home, icon: "home" },
+  { id: "journal", label: tabLabels.journal, icon: "book" },
+  { id: "strategies", label: tabLabels.strategies, icon: "sun" },
+  { id: "insights", label: tabLabels.insights, icon: "bar-chart-2" },
 ] as const;
 
-function JournalTabs({ theme, currentTab, onTabChange }: {
+function MainTabs({ theme, currentTab, onTabChange }: {
   theme: AccountTheme;
-  currentTab: JournalTab;
-  onTabChange: (tab: JournalTab) => void;
+  currentTab: MainTab;
+  onTabChange: (tab: MainTab) => void;
 }) {
   return (
-    <View accessibilityRole="tablist" style={[styles.journalTabs, { borderColor: theme.border }]}>
-      {journalTabs.map(({ id, label, icon }) => {
-        const available = id === "home" || id === "journal";
+    <View accessibilityRole="tablist" style={[styles.tabBar, { borderColor: theme.border }]}>
+      {mainTabs.map(({ id, label, icon }) => {
         const selected = currentTab === id;
         const color = selected ? theme.accent : theme.muted;
 
@@ -554,11 +606,10 @@ function JournalTabs({ theme, currentTab, onTabChange }: {
           <Pressable
             accessibilityRole="tab"
             accessibilityLabel={label}
-            accessibilityState={{ selected, disabled: !available }}
-            disabled={!available}
+            accessibilityState={{ selected }}
             key={id}
-            onPress={available ? () => onTabChange(id) : undefined}
-            style={({ pressed }) => [styles.journalTab, pressed && styles.pressed]}
+            onPress={() => onTabChange(id)}
+            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
           >
             <Feather accessible={false} name={icon} size={20} color={color} />
             <Text style={[styles.tabLabel, { color, fontFamily: theme.fonts.semibold }]}>{label}</Text>
@@ -595,11 +646,11 @@ const styles = StyleSheet.create({
   alternate: { alignItems: "center", marginTop: 12 },
   signInAlternate: { marginTop: 20 },
   helper: { fontSize: 14, lineHeight: 21 },
-  journalContent: { paddingBottom: 14 },
-  journalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 },
+  tabContent: { paddingBottom: 14 },
+  tabHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 },
   journalAction: { paddingHorizontal: 26, paddingTop: 8, paddingBottom: 14 },
-  journalTabs: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12 },
-  journalTab: { flex: 1, minHeight: 68, alignItems: "center", justifyContent: "center", gap: 4, padding: 4 },
+  tabBar: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12 },
+  tab: { flex: 1, minHeight: 68, alignItems: "center", justifyContent: "center", gap: 4, padding: 4 },
   tabLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" },
   tabIndicator: { width: 4, height: 4, borderRadius: 2 },
   pressed: { opacity: 0.75 },
