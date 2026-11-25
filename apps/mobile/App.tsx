@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentRef } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from "react";
 import { DMSans_400Regular } from "@expo-google-fonts/dm-sans/400Regular";
 import { DMSans_500Medium } from "@expo-google-fonts/dm-sans/500Medium";
 import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans/600SemiBold";
@@ -22,6 +22,7 @@ import {
   type Appearance,
 } from "./account-ui";
 import { authClient, type MomentumAuthClient } from "./auth-client";
+import { EntryDetailsScreen, EntryStrategyScreen, initialEntryDraft, type EntryDraft } from "./entry-screens";
 import { HomeScreen } from "./home-screen";
 import { JournalEntryScreen, JournalScreen } from "./journal-screens";
 import {
@@ -30,6 +31,7 @@ import {
   sampleJournalEntries,
   type JournalEntry,
 } from "./journal-data";
+import { ReflectionScreen } from "./reflection-screen";
 
 export default function App() {
   const [appearance, setAppearance] = useState<Appearance>("dark");
@@ -308,7 +310,11 @@ function CreateAccount({ theme, onLogIn, onCreateAccount }: {
 }
 
 type JournalTab = "home" | "journal";
-type SignedInDestination = { name: "account" } | { name: "entry"; entry: JournalEntry };
+type SignedInDestination =
+  | { name: "account" }
+  | { name: "entry"; entry: JournalEntry }
+  | { name: "entry-form"; step: "details" | "strategy"; draft: EntryDraft; originalEntry?: JournalEntry }
+  | { name: "reflection"; entry: JournalEntry; returnToEntry: boolean };
 
 function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange }: OwnerAccessProps & {
   ownerName: string;
@@ -316,18 +322,67 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
   const [tab, setTab] = useState<JournalTab>("home");
   const [destination, setDestination] = useState<SignedInDestination | null>(null);
   const [notice, setNotice] = useState("");
+  const [previewNotice, setPreviewNotice] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const submitting = useRef(false);
 
-  function closeDestination() {
-    setDestination(null);
-  }
+  const backLabel = tab === "home" ? "Home" : "Journal";
 
-  useBackToParent(destination ? closeDestination : tab === "journal" ? () => setTab("home") : undefined);
+  const goBack = useCallback(() => {
+    setDestination((current) => {
+      if (current?.name === "entry-form") {
+        if (current.step === "strategy") return { ...current, step: "details" };
+        if (current.originalEntry) return { name: "entry", entry: current.originalEntry };
+      }
+      if (current?.name === "reflection" && current.returnToEntry) {
+        return { name: "entry", entry: current.entry };
+      }
+      return null;
+    });
+  }, []);
+
+  useBackToParent(destination ? goBack : tab === "journal" ? () => selectTab("home") : undefined);
+
+  function selectTab(nextTab: JournalTab) {
+    setPreviewNotice("");
+    setTab(nextTab);
+  }
 
   function openEntry(id: string) {
     const entry = sampleJournalEntries.find((sample) => sample.id === id);
-    if (entry) setDestination({ name: "entry", entry });
+    if (entry) {
+      setPreviewNotice("");
+      setDestination({ name: "entry", entry });
+    }
+  }
+
+  function openEntryPreview() {
+    setPreviewNotice("");
+    setDestination({ name: "entry-form", step: "details", draft: initialEntryDraft });
+  }
+
+  function openEditPreview(entry: JournalEntry) {
+    setPreviewNotice("");
+    setDestination({
+      name: "entry-form",
+      step: "details",
+      originalEntry: entry,
+      draft: {
+        task: entry.title,
+        difficulty: entry.blocker,
+        activity: entry.whatIDidInstead ?? "",
+        strategy: entry.strategy ?? "",
+      },
+    });
+  }
+
+  function changeDraft(draft: EntryDraft) {
+    setDestination((current) => current?.name === "entry-form" ? { ...current, draft } : current);
+  }
+
+  function openReflection(entry: JournalEntry, returnToEntry = false) {
+    setPreviewNotice("");
+    setDestination({ name: "reflection", entry, returnToEntry });
   }
 
   async function signOut() {
@@ -354,7 +409,7 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
         ownerName={ownerName}
         appearance={appearance}
         onAppearanceChange={onAppearanceChange}
-        onBack={closeDestination}
+        onBack={goBack}
         onSignOut={signOut}
         signingOut={signingOut}
         notice={notice}
@@ -367,8 +422,61 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
       <JournalEntryScreen
         theme={theme}
         entry={destination.entry}
-        backLabel={tab === "home" ? "Home" : "Journal"}
-        onBack={closeDestination}
+        backLabel={backLabel}
+        onBack={goBack}
+        onEdit={() => openEditPreview(destination.entry)}
+        onReflect={() => openReflection(destination.entry, true)}
+        notice={previewNotice ? <Notice theme={theme} message={previewNotice} /> : null}
+      />
+    );
+  }
+
+  if (destination?.name === "entry-form") {
+    const originalEntry = destination.originalEntry;
+    const mode = originalEntry ? "edit" : "add";
+
+    if (destination.step === "strategy") {
+      return (
+        <EntryStrategyScreen
+          theme={theme}
+          draft={destination.draft}
+          mode={mode}
+          onDraftChange={changeDraft}
+          onBack={goBack}
+          onFinish={() => {
+            setPreviewNotice(originalEntry ? "Saving entry changes is coming later." : "Entry saving is coming later.");
+            setDestination(originalEntry ? { name: "entry", entry: originalEntry } : null);
+          }}
+        />
+      );
+    }
+
+    return (
+      <EntryDetailsScreen
+        theme={theme}
+        draft={destination.draft}
+        mode={mode}
+        onDraftChange={changeDraft}
+        backLabel={originalEntry ? "Journal entry" : backLabel}
+        onBack={goBack}
+        onContinue={() => {
+          setDestination((current) => current?.name === "entry-form" ? { ...current, step: "strategy" } : current);
+        }}
+      />
+    );
+  }
+
+  if (destination?.name === "reflection") {
+    return (
+      <ReflectionScreen
+        theme={theme}
+        entry={destination.entry}
+        backLabel={destination.returnToEntry ? "Entry" : backLabel}
+        onBack={goBack}
+        onFinish={() => {
+          setPreviewNotice("Reflection saving is coming later.");
+          setDestination(destination.returnToEntry ? { name: "entry", entry: destination.entry } : null);
+        }}
       />
     );
   }
@@ -381,10 +489,10 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
         <View>
           {tab === "journal" ? (
             <View style={styles.journalAction}>
-              <ActionButton theme={theme} label="Add an entry" icon="edit-2" disabled />
+              <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={openEntryPreview} />
             </View>
           ) : null}
-          <JournalTabs theme={theme} currentTab={tab} onTabChange={setTab} />
+          <JournalTabs theme={theme} currentTab={tab} onTabChange={selectTab} />
         </View>
       }
     >
@@ -395,13 +503,17 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
           accessibilityLabel="Account"
           accessibilityState={{ disabled: signingOut }}
           disabled={signingOut}
-          onPress={() => setDestination({ name: "account" })}
+          onPress={() => {
+            setPreviewNotice("");
+            setDestination({ name: "account" });
+          }}
           style={({ pressed }) => pressed && styles.pressed}
         >
           <AccountAvatar theme={theme} ownerName={ownerName} compact />
         </Pressable>
       </View>
       {notice ? <Notice theme={theme} message={notice} error /> : null}
+      {previewNotice ? <Notice theme={theme} message={previewNotice} /> : null}
       {tab === "home" ? (
         <HomeScreen
           theme={theme}
@@ -409,6 +521,8 @@ function SignedInArea({ client, ownerName, theme, appearance, onAppearanceChange
           recentEntry={recentJournalEntry}
           pendingEntry={pendingJournalEntry}
           onOpenEntry={openEntry}
+          onAddEntry={openEntryPreview}
+          onReflect={() => openReflection(pendingJournalEntry)}
         />
       ) : (
         <JournalScreen theme={theme} entries={sampleJournalEntries} onOpenEntry={openEntry} />

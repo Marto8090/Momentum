@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
+import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { AppScreen, LinkButton, ScreenHeading, type AccountTheme } from "./account-ui";
+import { ActionButton, AppScreen, LinkButton, ScreenHeading, type AccountTheme } from "./account-ui";
 import type { JournalEntry } from "./journal-data";
 
 type Themed = { theme: AccountTheme };
@@ -179,7 +180,17 @@ export function JournalEntryScreen({
   entry,
   backLabel,
   onBack,
-}: Themed & { entry: JournalEntry; backLabel: string; onBack: () => void }) {
+  onEdit,
+  onReflect,
+  notice,
+}: Themed & {
+  entry: JournalEntry;
+  backLabel: string;
+  onBack: () => void;
+  onEdit: () => void;
+  onReflect: () => void;
+  notice?: ReactNode;
+}) {
   return (
     <AppScreen
       theme={theme}
@@ -205,8 +216,9 @@ export function JournalEntryScreen({
             {backLabel}
           </Text>
         </Pressable>
-        <LinkButton theme={theme} label="Edit the entry" disabled />
+        <LinkButton theme={theme} label="Edit the entry" onPress={onEdit} />
       </View>
+      {notice}
       <View style={styles.detailIntro}>
         <Text style={[styles.metadata, { color: theme.muted, fontFamily: theme.fonts.body }]}>
           {entry.date} · {entry.time}
@@ -244,12 +256,16 @@ export function JournalEntryScreen({
               >
                 Reflection
               </Text>
-              <LinkButton theme={theme} label="Edit reflection" disabled />
+              <LinkButton theme={theme} label="Edit reflection" onPress={onReflect} />
             </View>
             <Text style={[styles.factValue, { color: theme.muted, fontFamily: theme.fonts.body }]}>
               {entry.reflection}
             </Text>
           </View>
+        </View>
+      ) : entry.strategy ? (
+        <View style={styles.reflectAction}>
+          <ActionButton theme={theme} label="Reflect" onPress={onReflect} />
         </View>
       ) : null}
     </AppScreen>
@@ -311,6 +327,7 @@ const styles = StyleSheet.create({
   reflection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 29, paddingTop: 20 },
   reflectionBody: { borderLeftWidth: 3, paddingLeft: 16, paddingBottom: 12, gap: 6 },
   reflectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  reflectAction: { marginTop: 29 },
   privacy: {
     alignItems: "center",
     justifyContent: "center",

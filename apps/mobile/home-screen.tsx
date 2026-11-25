@@ -9,6 +9,8 @@ type HomeScreenProps = {
   recentEntry: JournalEntry;
   pendingEntry: JournalEntry;
   onOpenEntry: (id: JournalEntry["id"]) => void;
+  onAddEntry: () => void;
+  onReflect: () => void;
 };
 
 export function HomeScreen({
@@ -17,6 +19,8 @@ export function HomeScreen({
   recentEntry,
   pendingEntry,
   onOpenEntry,
+  onAddEntry,
+  onReflect,
 }: HomeScreenProps) {
   return (
     <View style={styles.content}>
@@ -26,7 +30,7 @@ export function HomeScreen({
           title={`Hi, ${ownerName}`}
           description="Make room for a small start."
         />
-        <ActionButton theme={theme} label="Add an entry" icon="edit-2" disabled />
+        <ActionButton theme={theme} label="Add an entry" icon="edit-2" onPress={onAddEntry} />
       </View>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -50,9 +54,12 @@ export function HomeScreen({
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: true }}
-          disabled
-          style={[styles.reflectButton, { backgroundColor: theme.surfaceRaised }]}
+          onPress={onReflect}
+          style={({ pressed }) => [
+            styles.reflectButton,
+            { backgroundColor: theme.surfaceRaised },
+            pressed && styles.pressed,
+          ]}
         >
           <Text style={[styles.reflectLabel, { color: theme.accent, fontFamily: theme.fonts.bold }]}>
             Reflect
